@@ -141,6 +141,7 @@ export default function Tarifario() {
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [presupuestoVista, setPresupuestoVista]   = useState(null);
   const [linkCopiado, setLinkCopiado]             = useState(false);
+  const [vistaPublica, setVistaPublica]           = useState(false);
 
   const previewRef = useRef(null);
   const presupuestoIdRef = useRef(null);
@@ -153,7 +154,9 @@ export default function Tarifario() {
       const mm = String(now.getMonth() + 1).padStart(2, "0");
       const dd = String(now.getDate()).padStart(2, "0");
       const rnd = String(Math.floor(Math.random() * 900) + 100);
-      presupuestoIdRef.current = `pres_${Date.now()}`;
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b => b.toString(16).padStart(2, "0")).join("");
+      presupuestoIdRef.current = `pres_${token}`;
       codigoRef.current = `DE-${yy}${mm}${dd}-${rnd}`;
     }
     return { id: presupuestoIdRef.current, codigo: codigoRef.current };
@@ -191,7 +194,7 @@ export default function Tarifario() {
     if (!sharedId) return;
     fetch(`/api/presupuestos?id=${sharedId}`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); } });
+      .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); setVistaPublica(true); } });
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────
@@ -533,7 +536,7 @@ export default function Tarifario() {
     <div style={s.page}>
 
       {/* ── Header ────────────────────────────────────────────────── */}
-      <header style={s.header}>
+      {!vistaPublica && <header style={s.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <DELogo height={28} fill={T} />
           <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
@@ -545,7 +548,7 @@ export default function Tarifario() {
           <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
           <button onClick={abrirHistorial} style={s.btn(vista === "historial", TM)}>Historial</button>
         </div>
-      </header>
+      </header>}
 
       {/* ══════════════ EDITAR TARIFARIO ══════════════ */}
       {vista === "editar" && editTar && (
@@ -1068,7 +1071,7 @@ export default function Tarifario() {
 
           </div>
 
-          {dp && dp.items.some(i => i.descuento > 0) && (
+          {!vistaPublica && dp && dp.items.some(i => i.descuento > 0) && (
             <div style={{ marginTop: "12px", padding: "14px 18px", background: S2, border: `1px solid ${BD}`, borderRadius: "2px" }}>
               <div style={{ fontSize: "9px", color: CYN, letterSpacing: "0.16em", textTransform: "uppercase", fontFamily: MONO, marginBottom: "10px" }}>[ Descuentos internos ]</div>
               {dp.items.filter(i => i.descuento > 0).map(i => (
@@ -1089,7 +1092,7 @@ export default function Tarifario() {
             </div>
           )}
 
-          <div style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
+          {!vistaPublica && <div style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
             <button
               onClick={() => { presupuestoVista ? setVista("historial") : setVista("builder"); setPresupuestoVista(null); }}
               style={{ padding: "9px 20px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
@@ -1107,7 +1110,7 @@ export default function Tarifario() {
             <button onClick={guardarPDF} style={{ padding: "9px 24px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "600" }}>
               ↓ Generar PDF
             </button>
-          </div>
+          </div>}
         </div>
         );
       })()}
