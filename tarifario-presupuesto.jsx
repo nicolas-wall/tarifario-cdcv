@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ── Logo mark (fallback si no carga la imagen) ────────────────────────────
 const DELogo = ({ height, width, fill = "#E6E6E6" }) => {
@@ -135,6 +135,13 @@ export default function Tarifario() {
 
   // Clientes management
   const [clienteForm, setClienteForm]     = useState(null);
+
+  // Historial
+  const [historial, setHistorial]         = useState([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+  const [presupuestoVista, setPresupuestoVista]   = useState(null); // budget abierto desde historial
+
+  const previewRef = useRef(null);
 
   // ── Fonts ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -315,6 +322,133 @@ export default function Tarifario() {
     if (clienteId === id) setClienteId("");
   };
 
+  // ── Historial ──────────────────────────────────────────────────────────
+  const cargarHistorial = async () => {
+    setCargandoHistorial(true);
+    try {
+      const r = await fetch("/api/presupuestos");
+      if (r.ok) setHistorial(await r.json());
+    } catch { /* offline o sin token */ }
+    setCargandoHistorial(false);
+  };
+
+  const abrirHistorial = () => {
+    setVista("historial");
+    cargarHistorial();
+  };
+
+  const guardarEnHistorial = async () => {
+    const id = `pres_${Date.now()}`;
+    const itemsData = Object.values(seleccionados).map(({ item, cantidad, descripcion, descuento = 0 }) => {
+      const vivo = Object.values(tarifario).flat().find(i => i.id === item.id) || item;
+      const pf = precioFinal(vivo);
+      const pfDesc = descuento > 0 ? Math.round(pf * (1 - descuento / 100)) : pf;
+      return { id: vivo.id, nombre: vivo.nombre, precio: vivo.precio, precioFinal: pf, cantidad, descripcion, descuento, precioConDesc: pfDesc, subtotal: pfDesc * cantidad };
+    });
+    const payload = {
+      id,
+      fechaISO: new Date().toISOString(),
+      fecha: new Date().toLocaleDateString("es-AR"),
+      nombrePresupuesto,
+      cliente: clienteActual || null,
+      clienteTipo,
+      porcEstudio,
+      factorCliente,
+      factorEstudio,
+      items: itemsData,
+      totalNeto,
+      totalNetoConDesc,
+    };
+    try {
+      const r = await fetch("/api/presupuestos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (r.ok) alert("Presupuesto guardado en el historial ✓");
+      else alert("Error al guardar. Verificá la conexión.");
+    } catch { alert("Sin conexión con el servidor."); }
+  };
+
+  const eliminarDelHistorial = async (blobUrl) => {
+    if (!window.confirm("¿Eliminar este presupuesto del historial?")) return;
+    await fetch(`/api/presupuestos?url=${encodeURIComponent(blobUrl)}`, { method: "DELETE" });
+    setHistorial(prev => prev.filter(p => p.blobUrl !== blobUrl));
+  };
+
+  const abrirDesdeHistorial = (pres) => {
+    setPresupuestoVista(pres);
+    setVista("preview");
+  };
+
+  // ── Exportar ───────────────────────────────────────────────────────────
+  const slug = (clienteActual?.nombre || "cliente").replace(/\s+/g, "-").toLowerCase();
+  const fechaArchivo = new Date().toLocaleDateString("es-AR").replace(/\//g, "-");
+
+  const guardarMD = () => {
+    const fecha = new Date().toLocaleDateString("es-AR");
+    const tipoInfo = CLIENTE_TIPOS[clienteTipo];
+    let md = `# Presupuesto interno — ${clienteActual?.nombre || "Sin cliente"} — ${fecha}\n\n`;
+
+    md += `## Cliente\n`;
+    md += `- **Nombre:** ${clienteActual?.nombre || "—"}\n`;
+    if (clienteActual?.direccion) md += `- **Dirección:** ${clienteActual.direccion}\n`;
+    if (clienteActual?.telefono)  md += `- **Teléfono:** ${clienteActual.telefono}\n`;
+    md += `- **Tipo:** ${clienteTipo} — ${tipoInfo.label}\n`;
+    md += `- **Factor tipo:** ×${tipoInfo.factor}\n\n`;
+
+    md += `## Configuración de precios\n`;
+    md += `- **% Estudio adicional:** ${porcEstudio}%\n`;
+    md += `- **Factor combinado (tipo × estudio):** ×${(factorCliente * factorEstudio).toFixed(3)}\n\n`;
+
+    if (nombrePresupuesto) md += `## Referencia\n${nombrePresupuesto}\n\n`;
+
+    md += `## Ítems\n\n`;
+    md += `| Servicio | Nota | Cant. | Precio unit. | Descuento | P. c/desc. | Subtotal |\n`;
+    md += `|---|---|---|---|---|---|---|\n`;
+
+    Object.values(seleccionados).forEach(({ item, cantidad, descripcion, descuento = 0 }) => {
+      const vivo = Object.values(tarifario).flat().find(i => i.id === item.id) || item;
+      const pf = precioFinal(vivo);
+      const pfDesc = descuento > 0 ? Math.round(pf * (1 - descuento / 100)) : pf;
+      md += `| ${vivo.nombre} | ${descripcion || "—"} | ${cantidad} | ${fmt(pf)} | ${descuento > 0 ? descuento + "%" : "—"} | ${descuento > 0 ? fmt(pfDesc) : "—"} | ${fmt(pfDesc * cantidad)} |\n`;
+    });
+
+    md += `\n## Totales\n`;
+    md += `- **Subtotal presupuestado al cliente:** ${fmt(totalNeto)}\n`;
+    if (totalNetoConDesc !== totalNeto) {
+      md += `- **Subtotal con descuentos internos:** ${fmt(totalNetoConDesc)}\n`;
+      md += `- **Total descuentos aplicados:** ${fmt(totalNeto - totalNetoConDesc)}\n`;
+    }
+    md += `- **IVA 21%:** ${fmt(totalNeto * 0.21)}\n`;
+    md += `- **Total al cliente c/IVA:** ${fmt(totalNeto * 1.21)}\n`;
+
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `presupuesto-interno-${slug}-${fechaArchivo}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const guardarPDF = async () => {
+    if (!previewRef.current) return;
+    const html2pdf = (await import("html2pdf.js")).default;
+    html2pdf()
+      .set({
+        margin: 0,
+        filename: `presupuesto-${slug}-${fechaArchivo}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#111111" },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      })
+      .from(previewRef.current)
+      .save();
+  };
+
+  // datos que se usan en el preview (live o desde historial)
+  const dp = presupuestoVista || null;
   // ── Styles ─────────────────────────────────────────────────────────────
   const s = {
     page:  { minHeight: "100vh", background: BG, color: T, fontFamily: SANS, display: "flex", flexDirection: "column" },
@@ -341,10 +475,11 @@ export default function Tarifario() {
           <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
-          <button onClick={() => setVista("builder")}  style={s.btn(vista === "builder")}>Armar</button>
-          <button onClick={() => setVista("preview")}  style={s.btn(vista === "preview", CYN)}>Presupuesto</button>
+          <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }}  style={s.btn(vista === "builder")}>Armar</button>
+          <button onClick={() => { setPresupuestoVista(null); setVista("preview"); }}  style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
           <button onClick={entrarEdicion}               style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
           <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
+          <button onClick={abrirHistorial} style={s.btn(vista === "historial", TM)}>Historial</button>
         </div>
       </header>
 
@@ -757,41 +892,45 @@ export default function Tarifario() {
       )}
 
       {/* ══════════════ PREVIEW ══════════════ */}
-      {vista === "preview" && (
+      {vista === "preview" && (() => {
+        // Datos del preview: historial (dp) o builder live
+        const pvCliente        = dp?.cliente    || clienteActual;
+        const pvNombre         = dp?.nombrePresupuesto ?? nombrePresupuesto;
+        const pvFecha          = dp?.fecha      || new Date().toLocaleDateString("es-AR");
+        const pvTotalNeto      = dp?.totalNeto  ?? totalNeto;
+        const pvItems          = dp
+          ? dp.items.map(i => ({ id: i.id, nombre: i.nombre, cantidad: i.cantidad, descripcion: i.descripcion, precioFinal: i.precioFinal }))
+          : Object.values(seleccionados).map(({ item, cantidad, descripcion }) => {
+              const vivo = Object.values(tarifario).flat().find(i => i.id === item.id) || item;
+              return { id: vivo.id, nombre: vivo.nombre, cantidad, descripcion, precioFinal: precioFinal(vivo) };
+            });
+        return (
         <div style={{ maxWidth: "760px", margin: "0 auto", padding: "40px 20px", width: "100%" }}>
-          <div style={{ background: S1, border: `1px solid ${BDM}`, borderRadius: "2px", overflow: "hidden" }}>
+          <div ref={previewRef} style={{ background: S1, border: `1px solid ${BDM}`, borderRadius: "2px", overflow: "hidden" }}>
 
             {/* Banner superior */}
             <div style={{ position: "relative", height: "110px", background: "#0d0d0d", overflow: "hidden" }}>
               <img src="/images/presupuesto-header.jpg" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.65 }} onError={e => { e.target.style.display = "none"; }} />
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img
-                  src="/images/logo.png"
-                  alt="Dos Elementos"
-                  style={{ height: "44px", objectFit: "contain" }}
-                  onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }}
-                />
+                <img src="/images/logo.png" alt="Dos Elementos" style={{ height: "44px", objectFit: "contain" }}
+                  onError={e => { e.target.style.display = "none"; e.target.nextSibling.style.display = "block"; }} />
                 <div style={{ display: "none" }}><DELogo width={120} fill="#ffffff" /></div>
               </div>
             </div>
 
-            {/* Cabecera del presupuesto: estudio izq, cliente der */}
+            {/* Cabecera: nombre izq, dirección der */}
             <div style={{ padding: "28px 36px", borderBottom: `1px solid ${BD}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              {/* Izquierda: info del estudio / número de presupuesto */}
               <div>
                 <div style={{ fontSize: "9px", color: MAG, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: "10px", fontFamily: MONO }}>[ Presupuesto ]</div>
-                {nombrePresupuesto && (
-                  <div style={{ fontSize: "15px", color: T, fontFamily: MONO, marginBottom: "6px" }}>{nombrePresupuesto}</div>
-                )}
-                <div style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>{new Date().toLocaleDateString("es-AR")}</div>
-              </div>
-              {/* Derecha: datos del cliente */}
-              <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "24px", color: T, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em", marginBottom: "6px" }}>
-                  {clienteActual?.nombre || "Cliente"}
+                  {pvCliente?.nombre || "Cliente"}
                 </div>
-                {clienteActual?.direccion && <div style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{clienteActual.direccion}</div>}
-                {clienteActual?.telefono  && <div style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{clienteActual.telefono}</div>}
+                {pvNombre && <div style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{pvNombre}</div>}
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginBottom: "16px" }}>{pvFecha}</div>
+                {pvCliente?.direccion && <div style={{ fontSize: "13px", color: T, fontFamily: MONO }}>{pvCliente.direccion}</div>}
+                {pvCliente?.telefono  && <div style={{ fontSize: "13px", color: T, fontFamily: MONO, marginTop: "4px" }}>{pvCliente.telefono}</div>}
               </div>
             </div>
 
@@ -806,21 +945,17 @@ export default function Tarifario() {
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.values(seleccionados).map(({ item, cantidad, descripcion }) => {
-                    const vivo = Object.values(tarifario).flat().find(i => i.id === item.id) || item;
-                    const pf = precioFinal(vivo);
-                    return (
-                      <tr key={item.id} style={{ borderBottom: `1px solid ${BD}` }}>
-                        <td style={{ padding: "12px 0" }}>
-                          <div style={{ fontSize: "13px", color: "rgba(230,230,230,0.75)", fontFamily: SANS }}>{vivo.nombre}</div>
-                          {descripcion && <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginTop: "3px" }}>{descripcion}</div>}
-                        </td>
-                        <td style={{ padding: "12px 0", textAlign: "center", fontSize: "13px", color: TM, fontFamily: MONO }}>{cantidad}</td>
-                        <td style={{ padding: "12px 0", textAlign: "right", fontSize: "13px", color: TM, fontFamily: MONO }}>{fmt(pf)}</td>
-                        <td style={{ padding: "12px 0", textAlign: "right", fontSize: "13px", color: T, fontWeight: "600", fontFamily: MONO }}>{fmt(pf * cantidad)}</td>
-                      </tr>
-                    );
-                  })}
+                  {pvItems.map((row) => (
+                    <tr key={row.id} style={{ borderBottom: `1px solid ${BD}` }}>
+                      <td style={{ padding: "12px 0" }}>
+                        <div style={{ fontSize: "13px", color: "rgba(230,230,230,0.75)", fontFamily: SANS }}>{row.nombre}</div>
+                        {row.descripcion && <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginTop: "3px" }}>{row.descripcion}</div>}
+                      </td>
+                      <td style={{ padding: "12px 0", textAlign: "center", fontSize: "13px", color: TM, fontFamily: MONO }}>{row.cantidad}</td>
+                      <td style={{ padding: "12px 0", textAlign: "right", fontSize: "13px", color: TM, fontFamily: MONO }}>{fmt(row.precioFinal)}</td>
+                      <td style={{ padding: "12px 0", textAlign: "right", fontSize: "13px", color: T, fontWeight: "600", fontFamily: MONO }}>{fmt(row.precioFinal * row.cantidad)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -828,7 +963,7 @@ export default function Tarifario() {
             {/* Totales */}
             <div style={{ padding: "0 36px 28px", display: "flex", justifyContent: "flex-end" }}>
               <div style={{ width: "280px" }}>
-                {[["Subtotal", fmt(totalNeto), T], ["IVA (21%)", fmt(totalNeto * 0.21), TM]].map(([label, val, color]) => (
+                {[["Subtotal", fmt(pvTotalNeto), T], ["IVA (21%)", fmt(pvTotalNeto * 0.21), TM]].map(([label, val, color]) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderTop: `1px solid ${BD}` }}>
                     <span style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{label}</span>
                     <span style={{ fontSize: "13px", color, fontFamily: MONO }}>{val}</span>
@@ -836,7 +971,7 @@ export default function Tarifario() {
                 ))}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0", borderTop: `1px solid ${BDM}` }}>
                   <span style={{ fontSize: "9px", color: TM, fontFamily: MONO, letterSpacing: "0.14em", textTransform: "uppercase" }}>Total</span>
-                  <span style={{ fontSize: "26px", color: MAG, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em" }}>{fmt(totalNeto * 1.21)}</span>
+                  <span style={{ fontSize: "26px", color: MAG, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em" }}>{fmt(pvTotalNeto * 1.21)}</span>
                 </div>
               </div>
             </div>
@@ -859,9 +994,68 @@ export default function Tarifario() {
 
           </div>
 
-          <button onClick={() => setVista("builder")} style={{ marginTop: "16px", padding: "9px 20px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-            ← Volver
-          </button>
+          <div style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
+            <button
+              onClick={() => { presupuestoVista ? setVista("historial") : setVista("builder"); setPresupuestoVista(null); }}
+              style={{ padding: "9px 20px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
+            >
+              ← {presupuestoVista ? "Historial" : "Volver"}
+            </button>
+            {!presupuestoVista && (
+              <button onClick={guardarEnHistorial} style={{ padding: "9px 24px", background: `${CYN}15`, border: `1px solid ${CYN}40`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "600" }}>
+                ↑ Guardar en historial
+              </button>
+            )}
+            <button onClick={guardarPDF} style={{ padding: "9px 24px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "600" }}>
+              ↓ Generar PDF
+            </button>
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* ══════════════ HISTORIAL ══════════════ */}
+      {vista === "historial" && (
+        <div style={{ flex: 1, overflowY: "auto", padding: "32px 28px" }}>
+          <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+              <div style={{ fontFamily: DISPLAY, fontSize: "22px", fontWeight: "700", color: T, letterSpacing: "-0.02em" }}>Historial</div>
+              <button onClick={cargarHistorial} style={s.btn(false, TM)}>↺ Actualizar</button>
+            </div>
+
+            {cargandoHistorial && (
+              <div style={{ padding: "48px", textAlign: "center", color: TVM, fontFamily: MONO, fontSize: "13px" }}>Cargando...</div>
+            )}
+
+            {!cargandoHistorial && historial.length === 0 && (
+              <div style={{ padding: "48px 16px", textAlign: "center", color: TVM, fontSize: "13px", border: `1px dashed ${BD}`, borderRadius: "2px", fontFamily: MONO }}>
+                No hay presupuestos guardados todavía.
+              </div>
+            )}
+
+            {historial.map((pres) => (
+              <div key={pres.id} style={{ padding: "16px 20px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", marginBottom: "6px", display: "flex", alignItems: "center", gap: "16px" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "16px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em" }}>
+                    {pres.cliente?.nombre || "Sin cliente"}
+                    {pres.nombrePresupuesto && <span style={{ fontSize: "13px", color: TM, fontFamily: MONO, fontWeight: "400", marginLeft: "10px" }}>{pres.nombrePresupuesto}</span>}
+                  </div>
+                  <div style={{ marginTop: "4px", fontSize: "12px", color: TM, fontFamily: MONO, display: "flex", gap: "16px" }}>
+                    <span>{pres.fecha}</span>
+                    <span style={{ color: CLIENTE_TIPOS[pres.clienteTipo]?.color }}>{pres.clienteTipo} · {pres.porcEstudio > 0 ? `+${pres.porcEstudio}% estudio` : "sin recargo"}</span>
+                    <span style={{ color: MAG }}>{fmt(pres.totalNeto * 1.21)} c/IVA</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => abrirDesdeHistorial(pres)}
+                  style={{ padding: "7px 16px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}
+                >
+                  Ver / PDF
+                </button>
+                <button onClick={() => eliminarDelHistorial(pres.blobUrl)} style={s.iconBtn("rgba(255,80,80,0.5)")}>✕</button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
