@@ -521,6 +521,7 @@ export default function Tarifario() {
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
           <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }}  style={s.btn(vista === "builder")}>Armar</button>
+          <button onClick={() => { setSeleccionados({}); setNombrePresupuesto(""); setClienteId(""); presupuestoIdRef.current = null; codigoRef.current = null; setVista("builder"); }} style={s.btn(false, TM)}>+ Nuevo</button>
           <button onClick={irAPreview}  style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
           <button onClick={entrarEdicion}               style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
           <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
