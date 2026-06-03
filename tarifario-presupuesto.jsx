@@ -198,6 +198,7 @@ export default function Tarifario() {
   const previewRef = useRef(null);
   const presupuestoIdRef = useRef(null);
   const codigoRef = useRef(null);
+  const autoSaveRef = useRef(null);
 
   const ensurePresupuestoId = () => {
     if (!presupuestoIdRef.current) {
@@ -489,7 +490,7 @@ export default function Tarifario() {
     setPresupuestoVista(null);
     setVista("preview");
     if (Object.keys(seleccionados).length > 0) {
-      guardarEnHistorial("brief", true);
+      autoSaveRef.current = guardarEnHistorial("brief", true);
     }
   };
 
@@ -546,13 +547,16 @@ export default function Tarifario() {
 
   const guardarPDF = async () => {
     if (!previewRef.current) return;
-    // Update status first, before PDF generation, so it always runs
     if (presupuestoVista) {
       const updated = { ...presupuestoVista, status: "exportado" };
-      fetch("/api/presupuestos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
-      setPresupuestoVista(updated);
-      setHistorial(prev => prev.map(p => p.id === updated.id ? { ...p, status: "exportado" } : p));
+      const r = await fetch("/api/presupuestos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
+      if (r.ok) {
+        setPresupuestoVista(updated);
+        setHistorial(prev => prev.map(p => p.id === updated.id ? { ...p, status: "exportado" } : p));
+      }
     } else {
+      // Wait for any pending auto-save to finish before overwriting with exportado
+      if (autoSaveRef.current) { await autoSaveRef.current; autoSaveRef.current = null; }
       await guardarEnHistorial("exportado", true);
     }
     const html2pdf = (await import("html2pdf.js")).default;
