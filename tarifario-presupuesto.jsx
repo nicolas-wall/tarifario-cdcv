@@ -130,11 +130,11 @@ export default function Tarifario() {
 
   // Edit tarifario
   const [editTar, setEditTar]             = useState(null);
-  const [nuevoItemForm, setNuevoItemForm] = useState({}); // catName -> { nombre, precio }
+  const [nuevoItemForm, setNuevoItemForm] = useState({});
   const [nuevaCat, setNuevaCat]           = useState("");
 
   // Clientes management
-  const [clienteForm, setClienteForm]     = useState(null); // null | client object
+  const [clienteForm, setClienteForm]     = useState(null);
 
   // ── Fonts ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -149,7 +149,6 @@ export default function Tarifario() {
     return () => links.forEach(el => document.head.removeChild(el));
   }, []);
 
-  // Resetear categoriaAbierta si ya no existe
   useEffect(() => {
     if (categoriaAbierta && !tarifario[categoriaAbierta]) {
       setCategoriaAbierta(Object.keys(tarifario)[0] || "");
@@ -162,9 +161,18 @@ export default function Tarifario() {
   const factorEstudio   = 1 + porcEstudio / 100;
   const precioFinal     = (item) => Math.round(item.precio * factorCliente * factorEstudio);
 
+  // totalNeto sin descuentos → para el presupuesto imprimible
   const totalNeto = Object.values(seleccionados).reduce((acc, { item, cantidad }) => {
     const vivo = Object.values(tarifario).flat().find(i => i.id === item.id) || item;
     return acc + precioFinal(vivo) * cantidad;
+  }, 0);
+
+  // totalNetoConDesc con descuentos → para el resumen interno del builder
+  const totalNetoConDesc = Object.values(seleccionados).reduce((acc, { item, cantidad, descuento = 0 }) => {
+    const vivo = Object.values(tarifario).flat().find(i => i.id === item.id) || item;
+    const pf = precioFinal(vivo);
+    const pfDesc = descuento > 0 ? Math.round(pf * (1 - descuento / 100)) : pf;
+    return acc + pfDesc * cantidad;
   }, 0);
 
   const itemsFiltrados = busqueda
@@ -177,7 +185,7 @@ export default function Tarifario() {
   const toggleItem = (item) => {
     setSeleccionados(prev => {
       if (prev[item.id]) { const n = { ...prev }; delete n[item.id]; return n; }
-      return { ...prev, [item.id]: { item, cantidad: 1, descripcion: "" } };
+      return { ...prev, [item.id]: { item, cantidad: 1, descripcion: "", descuento: 0 } };
     });
   };
 
@@ -187,6 +195,10 @@ export default function Tarifario() {
 
   const setDescripcion = (id, val) => {
     setSeleccionados(prev => ({ ...prev, [id]: { ...prev[id], descripcion: val } }));
+  };
+
+  const setDescuento = (id, val) => {
+    setSeleccionados(prev => ({ ...prev, [id]: { ...prev[id], descuento: Math.min(100, Math.max(0, parseInt(val) || 0)) } }));
   };
 
   const seleccionarCliente = (id) => {
@@ -216,7 +228,6 @@ export default function Tarifario() {
     });
     setTarifario(parsed);
     guardarJSON(TAR_KEY, parsed);
-    // Limpiar seleccionados que ya no existen
     const ids = new Set(Object.values(parsed).flat().map(i => i.id));
     setSeleccionados(prev => {
       const n = {};
@@ -307,16 +318,16 @@ export default function Tarifario() {
   // ── Styles ─────────────────────────────────────────────────────────────
   const s = {
     page:  { minHeight: "100vh", background: BG, color: T, fontFamily: SANS, display: "flex", flexDirection: "column" },
-    header:{ borderBottom: `1px solid ${BDM}`, padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", background: BG, position: "sticky", top: 0, zIndex: 10 },
+    header:{ borderBottom: `1px solid ${BDM}`, padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: BG, position: "sticky", top: 0, zIndex: 10 },
     btn: (active, color = MAG) => ({
-      padding: "5px 14px", fontSize: "9px", letterSpacing: "0.14em", border: "1px solid",
+      padding: "7px 18px", fontSize: "11px", letterSpacing: "0.12em", border: "1px solid",
       borderRadius: "2px", cursor: "pointer", fontFamily: MONO, textTransform: "uppercase",
       background: active ? `${color}12` : "transparent",
       borderColor: active ? color : BD, color: active ? color : TM,
     }),
-    input: { padding: "8px 12px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", color: T, fontSize: "12px", fontFamily: SANS, width: "100%", boxSizing: "border-box", outline: "none" },
-    label: { fontSize: "9px", letterSpacing: "0.14em", color: TM, textTransform: "uppercase", display: "block", marginBottom: "6px", fontFamily: MONO },
-    iconBtn: (color = TM) => ({ background: "none", border: "none", color, cursor: "pointer", fontSize: "12px", padding: "3px 6px", fontFamily: MONO, borderRadius: "2px" }),
+    input: { padding: "10px 14px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", color: T, fontSize: "14px", fontFamily: SANS, width: "100%", boxSizing: "border-box", outline: "none" },
+    label: { fontSize: "11px", letterSpacing: "0.12em", color: TM, textTransform: "uppercase", display: "block", marginBottom: "6px", fontFamily: MONO },
+    iconBtn: (color = TM) => ({ background: "none", border: "none", color, cursor: "pointer", fontSize: "14px", padding: "3px 6px", fontFamily: MONO, borderRadius: "2px" }),
   };
 
   // ══════════════════════════════════════════════════════════════════════
@@ -325,9 +336,9 @@ export default function Tarifario() {
 
       {/* ── Header ────────────────────────────────────────────────── */}
       <header style={s.header}>
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <DELogo height={22} fill={T} />
-          <span style={{ fontSize: "9px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <DELogo height={28} fill={T} />
+          <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
           <button onClick={() => setVista("builder")}  style={s.btn(vista === "builder")}>Armar</button>
@@ -339,19 +350,19 @@ export default function Tarifario() {
 
       {/* ══════════════ EDITAR TARIFARIO ══════════════ */}
       {vista === "editar" && editTar && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "32px 28px" }}>
           <div style={{ maxWidth: "900px", margin: "0 auto" }}>
 
             {/* Toolbar */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
               <div>
-                <div style={{ fontFamily: DISPLAY, fontSize: "20px", fontWeight: "700", color: T, letterSpacing: "-0.02em", marginBottom: "4px" }}>Editar tarifario</div>
-                <div style={{ fontSize: "10px", color: TM, fontFamily: MONO }}>Precios base para cliente B — A (+35%) y C (−35%) se calculan automáticamente</div>
+                <div style={{ fontFamily: DISPLAY, fontSize: "22px", fontWeight: "700", color: T, letterSpacing: "-0.02em", marginBottom: "4px" }}>Editar tarifario</div>
+                <div style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>Precios base para cliente B — A (+35%) y C (−35%) se calculan automáticamente</div>
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
                 <button onClick={resetearTarifario} style={s.btn(false, TM)}>↺ Resetear</button>
                 <button onClick={() => setVista("builder")} style={s.btn(false, TM)}>Cancelar</button>
-                <button onClick={guardarEdicion} style={{ padding: "7px 18px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "9px", cursor: "pointer", fontFamily: MONO, fontWeight: "600", letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                <button onClick={guardarEdicion} style={{ padding: "8px 20px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, fontWeight: "600", letterSpacing: "0.12em", textTransform: "uppercase" }}>
                   Guardar ✓
                 </button>
               </div>
@@ -360,28 +371,26 @@ export default function Tarifario() {
             {/* Categorías */}
             {Object.entries(editTar).map(([cat, items], catIdx) => (
               <div key={cat} style={{ marginBottom: "20px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px" }}>
-                {/* Category header */}
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", borderBottom: `1px solid ${BD}` }}>
-                  <span style={{ fontFamily: MONO, fontSize: "9px", color: MAG }}>{String(catIdx + 1).padStart(2, "0")}</span>
-                  <span style={{ fontFamily: DISPLAY, fontSize: "13px", fontWeight: "600", letterSpacing: "0.06em", textTransform: "uppercase", color: T, flex: 1 }}>{cat}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 16px", borderBottom: `1px solid ${BD}` }}>
+                  <span style={{ fontFamily: MONO, fontSize: "11px", color: MAG }}>{String(catIdx + 1).padStart(2, "0")}</span>
+                  <span style={{ fontFamily: DISPLAY, fontSize: "14px", fontWeight: "600", letterSpacing: "0.06em", textTransform: "uppercase", color: T, flex: 1 }}>{cat}</span>
                   <button onClick={() => eliminarCategoria(cat)} style={s.iconBtn("rgba(255,80,80,0.6)")} title="Eliminar sección">✕ sección</button>
                 </div>
 
-                {/* Items */}
                 {items.map((item, idx) => (
-                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 14px", borderBottom: `1px solid ${BD}` }}>
-                    <span style={{ fontFamily: MONO, fontSize: "9px", color: TVM, minWidth: "22px" }}>{String(idx + 1).padStart(2, "0")}</span>
+                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", borderBottom: `1px solid ${BD}` }}>
+                    <span style={{ fontFamily: MONO, fontSize: "11px", color: TVM, minWidth: "24px" }}>{String(idx + 1).padStart(2, "0")}</span>
                     <input
                       value={item.nombre}
                       onChange={e => editarItem(cat, idx, "nombre", e.target.value)}
-                      style={{ flex: 1, padding: "5px 10px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: T, fontSize: "12px", fontFamily: SANS, outline: "none" }}
+                      style={{ flex: 1, padding: "6px 10px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: T, fontSize: "13px", fontFamily: SANS, outline: "none" }}
                     />
-                    <div style={{ position: "relative", width: "140px", flexShrink: 0 }}>
-                      <span style={{ position: "absolute", left: "9px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", color: TM, pointerEvents: "none", fontFamily: MONO }}>$</span>
+                    <div style={{ position: "relative", width: "150px", flexShrink: 0 }}>
+                      <span style={{ position: "absolute", left: "9px", top: "50%", transform: "translateY(-50%)", fontSize: "11px", color: TM, pointerEvents: "none", fontFamily: MONO }}>$</span>
                       <input
                         value={item.precio}
                         onChange={e => editarItem(cat, idx, "precio", e.target.value)}
-                        style={{ width: "100%", padding: "5px 8px 5px 20px", boxSizing: "border-box", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: T, fontSize: "12px", fontFamily: MONO, textAlign: "right", outline: "none" }}
+                        style={{ width: "100%", padding: "6px 8px 6px 22px", boxSizing: "border-box", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: T, fontSize: "13px", fontFamily: MONO, textAlign: "right", outline: "none" }}
                       />
                     </div>
                     <button onClick={() => eliminarItem(cat, idx)} style={s.iconBtn("rgba(255,80,80,0.5)")} title="Eliminar ítem">✕</button>
@@ -389,28 +398,28 @@ export default function Tarifario() {
                 ))}
 
                 {/* Add item form */}
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 14px" }}>
-                  <span style={{ fontFamily: MONO, fontSize: "9px", color: TVM, minWidth: "22px" }}>+</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px" }}>
+                  <span style={{ fontFamily: MONO, fontSize: "11px", color: TVM, minWidth: "24px" }}>+</span>
                   <input
                     placeholder="Nombre del nuevo ítem..."
                     value={nuevoItemForm[cat]?.nombre || ""}
                     onChange={e => setNuevoItemForm(prev => ({ ...prev, [cat]: { ...prev[cat], nombre: e.target.value } }))}
                     onKeyDown={e => e.key === "Enter" && agregarItem(cat)}
-                    style={{ flex: 1, padding: "5px 10px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "12px", fontFamily: SANS, outline: "none" }}
+                    style={{ flex: 1, padding: "6px 10px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "13px", fontFamily: SANS, outline: "none" }}
                   />
-                  <div style={{ position: "relative", width: "140px", flexShrink: 0 }}>
-                    <span style={{ position: "absolute", left: "9px", top: "50%", transform: "translateY(-50%)", fontSize: "10px", color: TVM, pointerEvents: "none", fontFamily: MONO }}>$</span>
+                  <div style={{ position: "relative", width: "150px", flexShrink: 0 }}>
+                    <span style={{ position: "absolute", left: "9px", top: "50%", transform: "translateY(-50%)", fontSize: "11px", color: TVM, pointerEvents: "none", fontFamily: MONO }}>$</span>
                     <input
                       placeholder="0"
                       value={nuevoItemForm[cat]?.precio || ""}
                       onChange={e => setNuevoItemForm(prev => ({ ...prev, [cat]: { ...prev[cat], precio: e.target.value } }))}
                       onKeyDown={e => e.key === "Enter" && agregarItem(cat)}
-                      style={{ width: "100%", padding: "5px 8px 5px 20px", boxSizing: "border-box", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "12px", fontFamily: MONO, textAlign: "right", outline: "none" }}
+                      style={{ width: "100%", padding: "6px 8px 6px 22px", boxSizing: "border-box", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "13px", fontFamily: MONO, textAlign: "right", outline: "none" }}
                     />
                   </div>
                   <button
                     onClick={() => agregarItem(cat)}
-                    style={{ padding: "5px 12px", background: `${MAG}18`, border: `1px solid ${MAG}40`, borderRadius: "2px", color: MAG, fontSize: "9px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}
+                    style={{ padding: "6px 14px", background: `${MAG}18`, border: `1px solid ${MAG}40`, borderRadius: "2px", color: MAG, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}
                   >
                     + Agregar
                   </button>
@@ -419,25 +428,25 @@ export default function Tarifario() {
             ))}
 
             {/* Add category */}
-            <div style={{ display: "flex", gap: "8px", marginTop: "12px", padding: "12px 14px", background: S1, border: `1px dashed ${BD}`, borderRadius: "2px", alignItems: "center" }}>
-              <span style={{ fontSize: "9px", color: TM, fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap" }}>Nueva sección</span>
+            <div style={{ display: "flex", gap: "8px", marginTop: "12px", padding: "14px 16px", background: S1, border: `1px dashed ${BD}`, borderRadius: "2px", alignItems: "center" }}>
+              <span style={{ fontSize: "11px", color: TM, fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap" }}>Nueva sección</span>
               <input
                 placeholder="Nombre de la categoría..."
                 value={nuevaCat}
                 onChange={e => setNuevaCat(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && agregarCategoria()}
-                style={{ flex: 1, padding: "6px 10px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: T, fontSize: "12px", fontFamily: SANS, outline: "none" }}
+                style={{ flex: 1, padding: "8px 10px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: T, fontSize: "13px", fontFamily: SANS, outline: "none" }}
               />
               <button
                 onClick={agregarCategoria}
-                style={{ padding: "6px 16px", background: `${MAG}18`, border: `1px solid ${MAG}40`, borderRadius: "2px", color: MAG, fontSize: "9px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}
+                style={{ padding: "8px 18px", background: `${MAG}18`, border: `1px solid ${MAG}40`, borderRadius: "2px", color: MAG, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}
               >
                 + Sección
               </button>
             </div>
 
             <div style={{ marginTop: "20px", display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={guardarEdicion} style={{ padding: "10px 28px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "9px", cursor: "pointer", fontFamily: MONO, fontWeight: "600", letterSpacing: "0.14em", textTransform: "uppercase" }}>
+              <button onClick={guardarEdicion} style={{ padding: "11px 30px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, fontWeight: "600", letterSpacing: "0.12em", textTransform: "uppercase" }}>
                 Guardar y volver →
               </button>
             </div>
@@ -447,25 +456,24 @@ export default function Tarifario() {
 
       {/* ══════════════ CLIENTES ══════════════ */}
       {vista === "clientes" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "28px 24px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "32px 28px" }}>
           <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-              <div style={{ fontFamily: DISPLAY, fontSize: "20px", fontWeight: "700", color: T, letterSpacing: "-0.02em" }}>Base de clientes</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+              <div style={{ fontFamily: DISPLAY, fontSize: "22px", fontWeight: "700", color: T, letterSpacing: "-0.02em" }}>Base de clientes</div>
               <button
                 onClick={() => setClienteForm({ nombre: "", direccion: "", telefono: "", tipo: "B" })}
-                style={{ padding: "7px 16px", background: `${MAG}18`, border: `1px solid ${MAG}40`, borderRadius: "2px", color: MAG, fontSize: "9px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
+                style={{ padding: "8px 18px", background: `${MAG}18`, border: `1px solid ${MAG}40`, borderRadius: "2px", color: MAG, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
               >
                 + Nuevo cliente
               </button>
             </div>
 
-            {/* Form inline para agregar/editar */}
             {clienteForm && (
-              <div style={{ marginBottom: "16px", padding: "16px", background: S1, border: `1px solid ${BDM}`, borderRadius: "2px" }}>
-                <div style={{ fontSize: "9px", color: MAG, fontFamily: MONO, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "14px" }}>
+              <div style={{ marginBottom: "16px", padding: "18px", background: S1, border: `1px solid ${BDM}`, borderRadius: "2px" }}>
+                <div style={{ fontSize: "11px", color: MAG, fontFamily: MONO, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: "16px" }}>
                   {clienteForm.id ? "Editar cliente" : "Nuevo cliente"}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
                   <div>
                     <label style={s.label}>Nombre / Razón social</label>
                     <input value={clienteForm.nombre} onChange={e => setClienteForm(p => ({ ...p, nombre: e.target.value }))} style={s.input} placeholder="Empresa S.A." />
@@ -485,7 +493,7 @@ export default function Tarifario() {
                     <div style={{ display: "inline-flex", gap: "4px" }}>
                       {Object.entries(CLIENTE_TIPOS).map(([k, v]) => (
                         <button key={k} onClick={() => setClienteForm(p => ({ ...p, tipo: k }))}
-                          style={{ padding: "4px 12px", borderRadius: "2px", border: "1px solid", cursor: "pointer", fontFamily: MONO, fontSize: "10px", fontWeight: "700", background: clienteForm.tipo === k ? `${v.color}15` : "transparent", borderColor: clienteForm.tipo === k ? v.color : BD, color: clienteForm.tipo === k ? v.color : TM }}>
+                          style={{ padding: "5px 14px", borderRadius: "2px", border: "1px solid", cursor: "pointer", fontFamily: MONO, fontSize: "11px", fontWeight: "700", background: clienteForm.tipo === k ? `${v.color}15` : "transparent", borderColor: clienteForm.tipo === k ? v.color : BD, color: clienteForm.tipo === k ? v.color : TM }}>
                           {k}
                         </button>
                       ))}
@@ -493,7 +501,7 @@ export default function Tarifario() {
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
                     <button onClick={() => setClienteForm(null)} style={s.btn(false, TM)}>Cancelar</button>
-                    <button onClick={guardarCliente} style={{ padding: "6px 16px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "9px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                    <button onClick={guardarCliente} style={{ padding: "7px 18px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}>
                       Guardar ✓
                     </button>
                   </div>
@@ -501,24 +509,23 @@ export default function Tarifario() {
               </div>
             )}
 
-            {/* Lista de clientes */}
             {clientes.length === 0 && !clienteForm && (
-              <div style={{ padding: "40px 16px", textAlign: "center", color: TVM, fontSize: "11px", border: `1px dashed ${BD}`, borderRadius: "2px", fontFamily: MONO }}>
+              <div style={{ padding: "48px 16px", textAlign: "center", color: TVM, fontSize: "13px", border: `1px dashed ${BD}`, borderRadius: "2px", fontFamily: MONO }}>
                 No hay clientes guardados. Agregá el primero con el botón de arriba.
               </div>
             )}
             {clientes.map((c, idx) => (
-              <div key={c.id} style={{ padding: "12px 14px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", marginBottom: "4px", display: "flex", alignItems: "flex-start", gap: "12px" }}>
-                <span style={{ fontFamily: MONO, fontSize: "9px", color: TVM, minWidth: "22px", paddingTop: "2px" }}>{String(idx + 1).padStart(2, "0")}</span>
+              <div key={c.id} style={{ padding: "14px 16px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", marginBottom: "4px", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                <span style={{ fontFamily: MONO, fontSize: "11px", color: TVM, minWidth: "24px", paddingTop: "2px" }}>{String(idx + 1).padStart(2, "0")}</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "14px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em" }}>{c.nombre}</div>
+                  <div style={{ fontSize: "16px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em" }}>{c.nombre}</div>
                   {(c.direccion || c.telefono) && (
-                    <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginTop: "3px" }}>
+                    <div style={{ fontSize: "12px", color: TM, fontFamily: MONO, marginTop: "3px" }}>
                       {[c.direccion, c.telefono].filter(Boolean).join("  ·  ")}
                     </div>
                   )}
                 </div>
-                <span style={{ fontSize: "9px", padding: "2px 8px", borderRadius: "2px", background: `${CLIENTE_TIPOS[c.tipo || "B"].color}12`, border: `1px solid ${CLIENTE_TIPOS[c.tipo || "B"].color}35`, color: CLIENTE_TIPOS[c.tipo || "B"].color, fontFamily: MONO, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                <span style={{ fontSize: "11px", padding: "3px 10px", borderRadius: "2px", background: `${CLIENTE_TIPOS[c.tipo || "B"].color}12`, border: `1px solid ${CLIENTE_TIPOS[c.tipo || "B"].color}35`, color: CLIENTE_TIPOS[c.tipo || "B"].color, fontFamily: MONO, textTransform: "uppercase", letterSpacing: "0.1em" }}>
                   {c.tipo || "B"}
                 </span>
                 <button onClick={() => setClienteForm({ ...c })} style={s.iconBtn(TM)}>✎</button>
@@ -531,46 +538,46 @@ export default function Tarifario() {
 
       {/* ══════════════ BUILDER ══════════════ */}
       {vista === "builder" && (
-        <div style={{ display: "flex", flex: 1, overflow: "hidden", height: "calc(100vh - 49px)" }}>
+        <div style={{ display: "flex", flex: 1, overflow: "hidden", height: "calc(100vh - 57px)" }}>
 
           {/* Panel izquierdo */}
-          <div style={{ width: "57%", overflowY: "auto", borderRight: `1px solid ${BD}`, padding: "20px 20px 60px" }}>
+          <div style={{ width: "57%", overflowY: "auto", borderRight: `1px solid ${BD}`, padding: "24px 24px 60px" }}>
 
             {/* Config */}
-            <div style={{ background: S1, border: `1px solid ${BD}`, borderRadius: "2px", padding: "14px", marginBottom: "18px", display: "flex", gap: "14px", flexWrap: "wrap" }}>
+            <div style={{ background: S1, border: `1px solid ${BD}`, borderRadius: "2px", padding: "16px", marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap" }}>
               {/* Columna izquierda: tipo */}
-              <div style={{ flex: "1", minWidth: "175px" }}>
+              <div style={{ flex: "1", minWidth: "190px" }}>
                 <label style={s.label}>Tipo de cliente</label>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                   {Object.entries(CLIENTE_TIPOS).map(([k, v]) => (
                     <button key={k} onClick={() => setClienteTipo(k)} style={{
-                      padding: "7px 10px", borderRadius: "2px", border: "1px solid", cursor: "pointer",
-                      textAlign: "left", fontSize: "11px", fontFamily: MONO, letterSpacing: "0.04em",
+                      padding: "9px 12px", borderRadius: "2px", border: "1px solid", cursor: "pointer",
+                      textAlign: "left", fontSize: "13px", fontFamily: MONO, letterSpacing: "0.04em",
                       background: clienteTipo === k ? `${v.color}10` : "transparent",
                       borderColor: clienteTipo === k ? v.color : BD,
                       color: clienteTipo === k ? v.color : TM,
                     }}>
                       <strong>{k}</strong>
                       <span style={{ marginLeft: "6px" }}>— {v.label.split("—")[1].trim()}</span>
-                      <span style={{ float: "right", opacity: 0.6, fontSize: "10px" }}>{k === "A" ? "+35%" : k === "C" ? "−35%" : "base"}</span>
+                      <span style={{ float: "right", opacity: 0.6, fontSize: "11px" }}>{k === "A" ? "+35%" : k === "C" ? "−35%" : "base"}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Columna derecha */}
-              <div style={{ flex: "1", minWidth: "155px" }}>
+              <div style={{ flex: "1", minWidth: "165px" }}>
                 <label style={s.label}>Cliente</label>
                 <select
                   value={clienteId}
                   onChange={e => seleccionarCliente(e.target.value)}
-                  style={{ ...s.input, cursor: "pointer", marginBottom: "6px", appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(230,230,230,0.3)'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center", paddingRight: "28px" }}
+                  style={{ ...s.input, cursor: "pointer", marginBottom: "8px", appearance: "none", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(230,230,230,0.3)'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: "30px" }}
                 >
                   <option value="">— Sin cliente —</option>
                   {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
                 {clienteActual && (
-                  <div style={{ fontSize: "10px", color: TM, fontFamily: MONO, marginBottom: "8px" }}>
+                  <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginBottom: "10px" }}>
                     {[clienteActual.direccion, clienteActual.telefono].filter(Boolean).join("  ·  ") || "—"}
                   </div>
                 )}
@@ -578,22 +585,22 @@ export default function Tarifario() {
                 <label style={s.label}>% Estudio adicional</label>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
                   <input type="number" min="0" max="300" value={porcEstudio} onChange={e => setPorcEstudio(Number(e.target.value))}
-                    style={{ width: "60px", padding: "6px", background: BG, border: `1px solid ${BDM}`, borderRadius: "2px", color: T, fontSize: "14px", fontFamily: MONO, outline: "none" }} />
-                  <span style={{ color: TM, fontSize: "12px", fontFamily: MONO }}>%</span>
-                  <span style={{ fontSize: "10px", color: TM, fontFamily: MONO }}>→ ×{(factorCliente * factorEstudio).toFixed(2)}</span>
+                    style={{ width: "68px", padding: "7px", background: BG, border: `1px solid ${BDM}`, borderRadius: "2px", color: T, fontSize: "16px", fontFamily: MONO, outline: "none" }} />
+                  <span style={{ color: TM, fontSize: "14px", fontFamily: MONO }}>%</span>
+                  <span style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>→ ×{(factorCliente * factorEstudio).toFixed(2)}</span>
                 </div>
-                <input type="range" min="0" max="100" value={Math.min(porcEstudio, 100)} onChange={e => setPorcEstudio(Number(e.target.value))} style={{ width: "100%", accentColor: MAG, marginBottom: "8px" }} />
+                <input type="range" min="0" max="100" value={Math.min(porcEstudio, 100)} onChange={e => setPorcEstudio(Number(e.target.value))} style={{ width: "100%", accentColor: MAG, marginBottom: "10px" }} />
 
                 <input placeholder="N° o descripción del presupuesto" value={nombrePresupuesto} onChange={e => setNombrePresupuesto(e.target.value)} style={s.input} />
               </div>
             </div>
 
             {/* Búsqueda */}
-            <div style={{ position: "relative", marginBottom: "14px" }}>
+            <div style={{ position: "relative", marginBottom: "16px" }}>
               <input placeholder="Buscar servicio..." value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                style={{ ...s.input, padding: "10px 34px 10px 12px", fontSize: "12px" }} />
+                style={{ ...s.input, padding: "12px 36px 12px 14px" }} />
               {busqueda && (
-                <button onClick={() => setBusqueda("")} style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: TM, cursor: "pointer" }}>✕</button>
+                <button onClick={() => setBusqueda("")} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: TM, cursor: "pointer", fontSize: "14px" }}>✕</button>
               )}
             </div>
 
@@ -602,15 +609,15 @@ export default function Tarifario() {
               <div key={cat} style={{ marginBottom: "4px" }}>
                 <button
                   onClick={() => setCategoriaAbierta(p => p === cat ? null : cat)}
-                  style={{ width: "100%", padding: "11px 14px", background: categoriaAbierta === cat ? S2 : S1, border: `1px solid ${categoriaAbierta === cat ? BDM : BD}`, borderRadius: "2px", cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit" }}
+                  style={{ width: "100%", padding: "13px 16px", background: categoriaAbierta === cat ? S2 : S1, border: `1px solid ${categoriaAbierta === cat ? BDM : BD}`, borderRadius: "2px", cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "inherit" }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    {!busqueda && <span style={{ fontFamily: MONO, fontSize: "9px", color: categoriaAbierta === cat ? MAG : TVM }}>{String(catIdx + 1).padStart(2, "0")}</span>}
-                    <span style={{ fontFamily: DISPLAY, fontSize: "13px", fontWeight: "600", letterSpacing: "0.06em", textTransform: "uppercase", color: categoriaAbierta === cat ? T : TM }}>{cat}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                    {!busqueda && <span style={{ fontFamily: MONO, fontSize: "11px", color: categoriaAbierta === cat ? MAG : TVM }}>{String(catIdx + 1).padStart(2, "0")}</span>}
+                    <span style={{ fontFamily: DISPLAY, fontSize: "14px", fontWeight: "600", letterSpacing: "0.06em", textTransform: "uppercase", color: categoriaAbierta === cat ? T : TM }}>{cat}</span>
                   </div>
-                  <span style={{ fontFamily: MONO, fontSize: "10px", color: TVM, display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontFamily: MONO, fontSize: "11px", color: TVM, display: "flex", alignItems: "center", gap: "10px" }}>
                     {items.filter(i => seleccionados[i.id]).length > 0 && (
-                      <span style={{ color: MAG, fontSize: "9px" }}>{items.filter(i => seleccionados[i.id]).length} sel.</span>
+                      <span style={{ color: MAG, fontSize: "11px" }}>{items.filter(i => seleccionados[i.id]).length} sel.</span>
                     )}
                     {categoriaAbierta === cat ? "▲" : "▼"}
                   </span>
@@ -621,36 +628,44 @@ export default function Tarifario() {
                     {items.map((item, itemIdx) => {
                       const sel = !!seleccionados[item.id];
                       const cant = seleccionados[item.id]?.cantidad ?? 1;
-                      const desc = seleccionados[item.id]?.descripcion ?? "";
+                      const nota = seleccionados[item.id]?.descripcion ?? "";
+                      const dscnt = seleccionados[item.id]?.descuento ?? 0;
                       const pf = precioFinal(item);
+                      const pfDesc = dscnt > 0 ? Math.round(pf * (1 - dscnt / 100)) : pf;
                       return (
                         <div key={item.id}>
-                          <div style={{ background: sel ? `${MAG}08` : S1, border: `1px solid ${sel ? MAG + "30" : BD}`, borderRadius: sel ? "2px 2px 0 0" : "2px", padding: "10px 14px", display: "flex", alignItems: "center", gap: "10px" }}>
-                            <span style={{ fontFamily: MONO, fontSize: "9px", color: sel ? MAG : TVM, minWidth: "22px", flexShrink: 0 }}>{String(itemIdx + 1).padStart(2, "0")}</span>
-                            <button onClick={() => toggleItem(item)} style={{ width: "15px", height: "15px", flexShrink: 0, border: `1.5px solid ${sel ? MAG : BDM}`, borderRadius: "2px", background: sel ? MAG : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                              {sel && <span style={{ color: "#fff", fontSize: "8px", fontWeight: "700", lineHeight: 1 }}>✓</span>}
+                          <div style={{ background: sel ? `${MAG}08` : S1, border: `1px solid ${sel ? MAG + "30" : BD}`, borderRadius: sel ? "2px 2px 0 0" : "2px", padding: "12px 16px", display: "flex", alignItems: "center", gap: "10px" }}>
+                            <span style={{ fontFamily: MONO, fontSize: "11px", color: sel ? MAG : TVM, minWidth: "24px", flexShrink: 0 }}>{String(itemIdx + 1).padStart(2, "0")}</span>
+                            <button onClick={() => toggleItem(item)} style={{ width: "17px", height: "17px", flexShrink: 0, border: `1.5px solid ${sel ? MAG : BDM}`, borderRadius: "2px", background: sel ? MAG : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                              {sel && <span style={{ color: "#fff", fontSize: "9px", fontWeight: "700", lineHeight: 1 }}>✓</span>}
                             </button>
-                            <span style={{ flex: 1, fontSize: "12px", color: sel ? T : "rgba(230,230,230,0.45)", fontFamily: SANS, lineHeight: "1.4" }}>{item.nombre}</span>
+                            <span style={{ flex: 1, fontSize: "13px", color: sel ? T : "rgba(230,230,230,0.45)", fontFamily: SANS, lineHeight: "1.4" }}>{item.nombre}</span>
                             {sel && (
-                              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                                <span style={{ fontSize: "10px", color: TM, fontFamily: MONO }}>×</span>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <span style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>×</span>
                                 <input type="number" min="1" value={cant} onChange={e => setCantidad(item.id, e.target.value)} onClick={e => e.stopPropagation()}
-                                  style={{ width: "38px", padding: "3px 5px", textAlign: "center", background: BG, border: `1px solid ${BDM}`, borderRadius: "2px", color: T, fontSize: "11px", fontFamily: MONO, outline: "none" }} />
+                                  style={{ width: "44px", padding: "4px 6px", textAlign: "center", background: BG, border: `1px solid ${BDM}`, borderRadius: "2px", color: T, fontSize: "13px", fontFamily: MONO, outline: "none" }} />
+                                <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                                  <input type="number" min="0" max="100" value={dscnt} onChange={e => setDescuento(item.id, e.target.value)} onClick={e => e.stopPropagation()}
+                                    style={{ width: "44px", padding: "4px 6px", textAlign: "center", background: BG, border: `1px solid ${dscnt > 0 ? CYN + "50" : BDM}`, borderRadius: "2px", color: dscnt > 0 ? CYN : TM, fontSize: "13px", fontFamily: MONO, outline: "none" }} />
+                                  <span style={{ fontSize: "12px", color: dscnt > 0 ? CYN : TVM, fontFamily: MONO }}>%</span>
+                                </div>
                               </div>
                             )}
-                            <div style={{ textAlign: "right", minWidth: "110px" }}>
-                              <div style={{ fontSize: "12px", color: sel ? MAG : TVM, fontWeight: "600", fontFamily: MONO }}>{fmt(pf)}</div>
-                              {sel && porcEstudio > 0 && <div style={{ fontSize: "10px", color: TVM, fontFamily: MONO }}>base {fmt(Math.round(item.precio * factorCliente))}</div>}
+                            <div style={{ textAlign: "right", minWidth: "120px" }}>
+                              <div style={{ fontSize: "13px", color: sel ? (dscnt > 0 ? CYN : MAG) : TVM, fontWeight: "600", fontFamily: MONO }}>{fmt(sel ? pfDesc : pf)}</div>
+                              {sel && dscnt > 0 && <div style={{ fontSize: "11px", color: TVM, fontFamily: MONO, textDecoration: "line-through" }}>{fmt(pf)}</div>}
+                              {sel && porcEstudio > 0 && dscnt === 0 && <div style={{ fontSize: "11px", color: TVM, fontFamily: MONO }}>base {fmt(Math.round(item.precio * factorCliente))}</div>}
                             </div>
                           </div>
-                          {/* Descripción inline */}
+                          {/* Nota inline */}
                           {sel && (
-                            <div style={{ background: `${MAG}05`, border: `1px solid ${MAG}20`, borderTop: "none", borderRadius: "0 0 2px 2px", padding: "6px 14px 8px 50px" }}>
+                            <div style={{ background: `${MAG}05`, border: `1px solid ${MAG}20`, borderTop: "none", borderRadius: "0 0 2px 2px", padding: "7px 16px 9px 54px" }}>
                               <input
                                 placeholder="Descripción o nota para el presupuesto..."
-                                value={desc}
+                                value={nota}
                                 onChange={e => setDescripcion(item.id, e.target.value)}
-                                style={{ width: "100%", padding: "4px 10px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", fontFamily: MONO, outline: "none", boxSizing: "border-box" }}
+                                style={{ width: "100%", padding: "5px 10px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "12px", fontFamily: MONO, outline: "none", boxSizing: "border-box" }}
                               />
                             </div>
                           )}
@@ -664,70 +679,75 @@ export default function Tarifario() {
           </div>
 
           {/* Panel derecho: resumen */}
-          <div style={{ width: "43%", overflowY: "auto", padding: "20px", background: "#0d0d0d" }}>
-            <div style={{ fontSize: "9px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", marginBottom: "16px", fontFamily: MONO }}>Resumen</div>
+          <div style={{ width: "43%", overflowY: "auto", padding: "24px", background: "#0d0d0d" }}>
+            <div style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", marginBottom: "18px", fontFamily: MONO }}>Resumen</div>
 
             {clienteActual && (
-              <div style={{ marginBottom: "4px", fontSize: "16px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em" }}>{clienteActual.nombre}</div>
+              <div style={{ marginBottom: "4px", fontSize: "18px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em" }}>{clienteActual.nombre}</div>
             )}
             {clienteActual && (clienteActual.direccion || clienteActual.telefono) && (
-              <div style={{ marginBottom: "10px", fontSize: "11px", color: TM, fontFamily: MONO }}>
+              <div style={{ marginBottom: "12px", fontSize: "12px", color: TM, fontFamily: MONO }}>
                 {[clienteActual.direccion, clienteActual.telefono].filter(Boolean).join("  ·  ")}
               </div>
             )}
-            {nombrePresupuesto && <div style={{ marginBottom: "14px", fontSize: "11px", color: TM, fontFamily: MONO }}>{nombrePresupuesto}</div>}
+            {nombrePresupuesto && <div style={{ marginBottom: "16px", fontSize: "12px", color: TM, fontFamily: MONO }}>{nombrePresupuesto}</div>}
 
-            <div style={{ marginBottom: "16px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
-              <span style={{ padding: "3px 10px", borderRadius: "2px", fontSize: "9px", background: `${CLIENTE_TIPOS[clienteTipo].color}10`, border: `1px solid ${CLIENTE_TIPOS[clienteTipo].color}35`, color: CLIENTE_TIPOS[clienteTipo].color, fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            <div style={{ marginBottom: "18px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              <span style={{ padding: "4px 12px", borderRadius: "2px", fontSize: "11px", background: `${CLIENTE_TIPOS[clienteTipo].color}10`, border: `1px solid ${CLIENTE_TIPOS[clienteTipo].color}35`, color: CLIENTE_TIPOS[clienteTipo].color, fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}>
                 Cliente {clienteTipo}
               </span>
               {porcEstudio > 0 && (
-                <span style={{ padding: "3px 10px", borderRadius: "2px", fontSize: "9px", background: `${CYN}10`, border: `1px solid ${CYN}30`, color: CYN, fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}>+{porcEstudio}% estudio</span>
+                <span style={{ padding: "4px 12px", borderRadius: "2px", fontSize: "11px", background: `${CYN}10`, border: `1px solid ${CYN}30`, color: CYN, fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}>+{porcEstudio}% estudio</span>
               )}
             </div>
 
             {Object.keys(seleccionados).length === 0 ? (
-              <div style={{ padding: "40px 16px", textAlign: "center", color: TVM, fontSize: "11px", border: `1px dashed ${BD}`, borderRadius: "2px", fontFamily: MONO, letterSpacing: "0.06em" }}>
+              <div style={{ padding: "48px 16px", textAlign: "center", color: TVM, fontSize: "13px", border: `1px dashed ${BD}`, borderRadius: "2px", fontFamily: MONO, letterSpacing: "0.06em" }}>
                 Seleccioná servicios del panel izquierdo
               </div>
             ) : (
               <>
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "16px" }}>
-                  {Object.values(seleccionados).map(({ item, cantidad, descripcion }) => {
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "18px" }}>
+                  {Object.values(seleccionados).map(({ item, cantidad, descripcion, descuento = 0 }) => {
                     const vivo = Object.values(tarifario).flat().find(i => i.id === item.id) || item;
                     const pf = precioFinal(vivo);
+                    const pfDesc = descuento > 0 ? Math.round(pf * (1 - descuento / 100)) : pf;
                     return (
-                      <div key={item.id} style={{ padding: "9px 12px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px" }}>
+                      <div key={item.id} style={{ padding: "10px 14px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px" }}>
                         <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: "11px", color: "rgba(230,230,230,0.7)", lineHeight: "1.4", fontFamily: SANS }}>{vivo.nombre}</div>
-                            {descripcion && <div style={{ fontSize: "10px", color: TM, fontFamily: MONO, marginTop: "2px" }}>{descripcion}</div>}
-                            {cantidad > 1 && <div style={{ fontSize: "10px", color: TM, fontFamily: MONO }}>× {cantidad} · {fmt(pf)}</div>}
+                            <div style={{ fontSize: "13px", color: "rgba(230,230,230,0.7)", lineHeight: "1.4", fontFamily: SANS }}>{vivo.nombre}</div>
+                            {descripcion && <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginTop: "2px" }}>{descripcion}</div>}
+                            {cantidad > 1 && <div style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>× {cantidad} · {fmt(pfDesc)}</div>}
+                            {descuento > 0 && <div style={{ fontSize: "11px", color: CYN, fontFamily: MONO, marginTop: "2px" }}>−{descuento}% dto. interno</div>}
                           </div>
-                          <div style={{ fontSize: "12px", color: MAG, fontWeight: "600", whiteSpace: "nowrap", fontFamily: MONO }}>{fmt(pf * cantidad)}</div>
-                          <button onClick={() => toggleItem(item)} style={{ background: "none", border: "none", color: TVM, cursor: "pointer", fontSize: "12px", padding: "0 2px" }}>✕</button>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: "13px", color: descuento > 0 ? CYN : MAG, fontWeight: "600", whiteSpace: "nowrap", fontFamily: MONO }}>{fmt(pfDesc * cantidad)}</div>
+                            {descuento > 0 && <div style={{ fontSize: "11px", color: TVM, fontFamily: MONO, textDecoration: "line-through" }}>{fmt(pf * cantidad)}</div>}
+                          </div>
+                          <button onClick={() => toggleItem(item)} style={{ background: "none", border: "none", color: TVM, cursor: "pointer", fontSize: "14px", padding: "0 2px" }}>✕</button>
                         </div>
                       </div>
                     );
                   })}
                 </div>
 
-                <div style={{ padding: "14px 16px", background: S1, border: `1px solid ${BDM}`, borderRadius: "2px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
-                    <span style={{ fontSize: "9px", color: TM, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: MONO }}>Total neto</span>
-                    <span style={{ fontSize: "18px", color: T, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em" }}>{fmt(totalNeto)}</span>
+                <div style={{ padding: "16px 18px", background: S1, border: `1px solid ${BDM}`, borderRadius: "2px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "11px", color: TM, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: MONO }}>Total neto</span>
+                    <span style={{ fontSize: "20px", color: T, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em" }}>{fmt(totalNetoConDesc)}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "10px", color: TM, fontFamily: MONO }}>IVA 21%</span>
-                    <span style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{fmt(totalNeto * 0.21)}</span>
+                    <span style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>IVA 21%</span>
+                    <span style={{ fontSize: "13px", color: TM, fontFamily: MONO }}>{fmt(totalNetoConDesc * 0.21)}</span>
                   </div>
-                  <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: `1px solid ${BD}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontSize: "9px", color: TM, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: MONO }}>Total c/ IVA</span>
-                    <span style={{ fontSize: "24px", color: MAG, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em" }}>{fmt(totalNeto * 1.21)}</span>
+                  <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${BD}`, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                    <span style={{ fontSize: "11px", color: TM, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: MONO }}>Total c/ IVA</span>
+                    <span style={{ fontSize: "26px", color: MAG, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em" }}>{fmt(totalNetoConDesc * 1.21)}</span>
                   </div>
                 </div>
 
-                <button onClick={() => setVista("preview")} style={{ marginTop: "10px", width: "100%", padding: "12px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "9px", letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer", fontFamily: MONO, fontWeight: "600" }}>
+                <button onClick={() => setVista("preview")} style={{ marginTop: "12px", width: "100%", padding: "14px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer", fontFamily: MONO, fontWeight: "600" }}>
                   Ver presupuesto →
                 </button>
               </>
@@ -738,7 +758,7 @@ export default function Tarifario() {
 
       {/* ══════════════ PREVIEW ══════════════ */}
       {vista === "preview" && (
-        <div style={{ maxWidth: "740px", margin: "0 auto", padding: "40px 20px", width: "100%" }}>
+        <div style={{ maxWidth: "760px", margin: "0 auto", padding: "40px 20px", width: "100%" }}>
           <div style={{ background: S1, border: `1px solid ${BDM}`, borderRadius: "2px", overflow: "hidden" }}>
 
             {/* Banner superior */}
@@ -755,29 +775,33 @@ export default function Tarifario() {
               </div>
             </div>
 
-            {/* Datos del cliente y presupuesto */}
-            <div style={{ padding: "24px 32px", borderBottom: `1px solid ${BD}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            {/* Cabecera del presupuesto: estudio izq, cliente der */}
+            <div style={{ padding: "28px 36px", borderBottom: `1px solid ${BD}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              {/* Izquierda: info del estudio / número de presupuesto */}
               <div>
-                <div style={{ fontSize: "9px", color: MAG, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: "8px", fontFamily: MONO }}>[ Presupuesto ]</div>
-                <div style={{ fontSize: "24px", color: T, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em", marginBottom: "4px" }}>
+                <div style={{ fontSize: "9px", color: MAG, letterSpacing: "0.16em", textTransform: "uppercase", marginBottom: "10px", fontFamily: MONO }}>[ Presupuesto ]</div>
+                {nombrePresupuesto && (
+                  <div style={{ fontSize: "15px", color: T, fontFamily: MONO, marginBottom: "6px" }}>{nombrePresupuesto}</div>
+                )}
+                <div style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>{new Date().toLocaleDateString("es-AR")}</div>
+              </div>
+              {/* Derecha: datos del cliente */}
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: "24px", color: T, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em", marginBottom: "6px" }}>
                   {clienteActual?.nombre || "Cliente"}
                 </div>
-                {clienteActual?.direccion && <div style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>{clienteActual.direccion}</div>}
-                {clienteActual?.telefono  && <div style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>{clienteActual.telefono}</div>}
-                {nombrePresupuesto && <div style={{ marginTop: "6px", fontSize: "11px", color: TM, fontFamily: MONO }}>{nombrePresupuesto}</div>}
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "9px", color: TM, fontFamily: MONO }}>{new Date().toLocaleDateString("es-AR")}</div>
+                {clienteActual?.direccion && <div style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{clienteActual.direccion}</div>}
+                {clienteActual?.telefono  && <div style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{clienteActual.telefono}</div>}
               </div>
             </div>
 
             {/* Tabla */}
-            <div style={{ padding: "20px 32px" }}>
+            <div style={{ padding: "24px 36px" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: `1px solid ${BD}` }}>
                     {["Servicio", "Cant.", "Precio unit.", "Subtotal"].map((h, i) => (
-                      <th key={h} style={{ textAlign: i === 0 ? "left" : i === 1 ? "center" : "right", fontSize: "9px", color: TM, letterSpacing: "0.14em", textTransform: "uppercase", paddingBottom: "10px", fontFamily: MONO, fontWeight: "400", width: i === 1 ? "50px" : i > 1 ? "130px" : "auto" }}>{h}</th>
+                      <th key={h} style={{ textAlign: i === 0 ? "left" : i === 1 ? "center" : "right", fontSize: "9px", color: TM, letterSpacing: "0.14em", textTransform: "uppercase", paddingBottom: "12px", fontFamily: MONO, fontWeight: "400", width: i === 1 ? "54px" : i > 1 ? "140px" : "auto" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -787,13 +811,13 @@ export default function Tarifario() {
                     const pf = precioFinal(vivo);
                     return (
                       <tr key={item.id} style={{ borderBottom: `1px solid ${BD}` }}>
-                        <td style={{ padding: "10px 0" }}>
-                          <div style={{ fontSize: "12px", color: "rgba(230,230,230,0.75)", fontFamily: SANS }}>{vivo.nombre}</div>
-                          {descripcion && <div style={{ fontSize: "10px", color: TM, fontFamily: MONO, marginTop: "2px" }}>{descripcion}</div>}
+                        <td style={{ padding: "12px 0" }}>
+                          <div style={{ fontSize: "13px", color: "rgba(230,230,230,0.75)", fontFamily: SANS }}>{vivo.nombre}</div>
+                          {descripcion && <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginTop: "3px" }}>{descripcion}</div>}
                         </td>
-                        <td style={{ padding: "10px 0", textAlign: "center", fontSize: "12px", color: TM, fontFamily: MONO }}>{cantidad}</td>
-                        <td style={{ padding: "10px 0", textAlign: "right", fontSize: "12px", color: TM, fontFamily: MONO }}>{fmt(pf)}</td>
-                        <td style={{ padding: "10px 0", textAlign: "right", fontSize: "12px", color: T, fontWeight: "600", fontFamily: MONO }}>{fmt(pf * cantidad)}</td>
+                        <td style={{ padding: "12px 0", textAlign: "center", fontSize: "13px", color: TM, fontFamily: MONO }}>{cantidad}</td>
+                        <td style={{ padding: "12px 0", textAlign: "right", fontSize: "13px", color: TM, fontFamily: MONO }}>{fmt(pf)}</td>
+                        <td style={{ padding: "12px 0", textAlign: "right", fontSize: "13px", color: T, fontWeight: "600", fontFamily: MONO }}>{fmt(pf * cantidad)}</td>
                       </tr>
                     );
                   })}
@@ -802,23 +826,23 @@ export default function Tarifario() {
             </div>
 
             {/* Totales */}
-            <div style={{ padding: "0 32px 24px", display: "flex", justifyContent: "flex-end" }}>
-              <div style={{ width: "260px" }}>
+            <div style={{ padding: "0 36px 28px", display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ width: "280px" }}>
                 {[["Subtotal", fmt(totalNeto), T], ["IVA (21%)", fmt(totalNeto * 0.21), TM]].map(([label, val, color]) => (
-                  <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: `1px solid ${BD}` }}>
-                    <span style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>{label}</span>
-                    <span style={{ fontSize: "12px", color, fontFamily: MONO }}>{val}</span>
+                  <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderTop: `1px solid ${BD}` }}>
+                    <span style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{label}</span>
+                    <span style={{ fontSize: "13px", color, fontFamily: MONO }}>{val}</span>
                   </div>
                 ))}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "12px 0", borderTop: `1px solid ${BDM}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "14px 0", borderTop: `1px solid ${BDM}` }}>
                   <span style={{ fontSize: "9px", color: TM, fontFamily: MONO, letterSpacing: "0.14em", textTransform: "uppercase" }}>Total</span>
-                  <span style={{ fontSize: "24px", color: MAG, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em" }}>{fmt(totalNeto * 1.21)}</span>
+                  <span style={{ fontSize: "26px", color: MAG, fontWeight: "700", fontFamily: DISPLAY, letterSpacing: "-0.02em" }}>{fmt(totalNeto * 1.21)}</span>
                 </div>
               </div>
             </div>
 
             {/* Notas */}
-            <div style={{ margin: "0 32px 24px", padding: "12px 16px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", fontSize: "10px", color: TM, lineHeight: "1.7", fontFamily: MONO }}>
+            <div style={{ margin: "0 36px 28px", padding: "14px 18px", background: BG, border: `1px solid ${BD}`, borderRadius: "2px", fontSize: "11px", color: TM, lineHeight: "1.7", fontFamily: MONO }}>
               <div style={{ marginBottom: "4px", color: TVM, textTransform: "uppercase", letterSpacing: "0.12em", fontSize: "9px" }}>— Notas</div>
               Los valores son orientativos y pueden variar según la complejidad del proyecto, plazos de entrega y otros factores específicos. No incluye gastos de materialización salvo indicación expresa. Validez del presupuesto: 15 días.
             </div>
@@ -827,15 +851,15 @@ export default function Tarifario() {
             <div style={{ position: "relative", height: "72px", background: "#0d0d0d", overflow: "hidden" }}>
               <img src="/images/presupuesto-footer.jpg" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.5 }} onError={e => { e.target.style.display = "none"; }} />
               <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "20px" }}>
-                <span style={{ fontFamily: MONO, fontSize: "10px", letterSpacing: "0.12em", color: "rgba(255,255,255,0.65)" }}>info@doselementos.com</span>
-                <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "10px" }}>·</span>
-                <span style={{ fontFamily: MONO, fontSize: "10px", letterSpacing: "0.12em", color: "rgba(255,255,255,0.65)" }}>www.doselementos.com</span>
+                <span style={{ fontFamily: MONO, fontSize: "11px", letterSpacing: "0.12em", color: "rgba(255,255,255,0.65)" }}>info@doselementos.com</span>
+                <span style={{ color: "rgba(255,255,255,0.2)", fontSize: "11px" }}>·</span>
+                <span style={{ fontFamily: MONO, fontSize: "11px", letterSpacing: "0.12em", color: "rgba(255,255,255,0.65)" }}>www.doselementos.com</span>
               </div>
             </div>
 
           </div>
 
-          <button onClick={() => setVista("builder")} style={{ marginTop: "14px", padding: "8px 18px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "9px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+          <button onClick={() => setVista("builder")} style={{ marginTop: "16px", padding: "9px 20px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}>
             ← Volver
           </button>
         </div>
