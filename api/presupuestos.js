@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     const data = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
     const filename = `presupuestos/${data.id}.json`;
     const blob = await put(filename, JSON.stringify(data, null, 2), {
-      access: "public",
+      access: "private",
       contentType: "application/json",
       addRandomSuffix: false,
     });
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     const items = await Promise.all(
       blobs.map(async (b) => {
         try {
-          const r = await fetch(b.url);
+          const r = await fetch(b.downloadUrl);
           const d = await r.json();
           return { ...d, blobUrl: b.url };
         } catch { return null; }
