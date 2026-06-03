@@ -997,6 +997,27 @@ export default function Tarifario() {
 
           </div>
 
+          {dp && dp.items.some(i => i.descuento > 0) && (
+            <div style={{ marginTop: "12px", padding: "14px 18px", background: S2, border: `1px solid ${BD}`, borderRadius: "2px" }}>
+              <div style={{ fontSize: "9px", color: CYN, letterSpacing: "0.16em", textTransform: "uppercase", fontFamily: MONO, marginBottom: "10px" }}>[ Descuentos internos ]</div>
+              {dp.items.filter(i => i.descuento > 0).map(i => (
+                <div key={i.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderTop: `1px solid ${BD}` }}>
+                  <span style={{ fontSize: "12px", color: TM, fontFamily: SANS }}>{i.nombre}</span>
+                  <div style={{ display: "flex", gap: "16px", fontFamily: MONO }}>
+                    <span style={{ fontSize: "12px", color: CYN }}>−{i.descuento}%</span>
+                    <span style={{ fontSize: "12px", color: TVM }}>{fmt(i.precioConDesc)} u.</span>
+                  </div>
+                </div>
+              ))}
+              {dp.totalNetoConDesc !== undefined && (
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderTop: `1px solid ${BDM}`, marginTop: "4px" }}>
+                  <span style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>Neto con descuentos</span>
+                  <span style={{ fontSize: "13px", color: CYN, fontFamily: MONO, fontWeight: "600" }}>{fmt(dp.totalNetoConDesc)} + IVA</span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
             <button
               onClick={() => { presupuestoVista ? setVista("historial") : setVista("builder"); setPresupuestoVista(null); }}
