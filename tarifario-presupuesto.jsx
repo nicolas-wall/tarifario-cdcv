@@ -437,7 +437,7 @@ export default function Tarifario() {
     const html2pdf = (await import("html2pdf.js")).default;
     const el = previewRef.current;
     const widthMm = 210;
-    const heightMm = (el.scrollHeight / el.offsetWidth) * widthMm;
+    const heightMm = (el.offsetHeight / el.offsetWidth) * widthMm;
     html2pdf()
       .set({
         margin: 0,
