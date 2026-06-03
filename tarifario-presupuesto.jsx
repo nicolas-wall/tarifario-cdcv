@@ -139,7 +139,8 @@ export default function Tarifario() {
   // Historial
   const [historial, setHistorial]         = useState([]);
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
-  const [presupuestoVista, setPresupuestoVista]   = useState(null); // budget abierto desde historial
+  const [presupuestoVista, setPresupuestoVista]   = useState(null);
+  const [linkCopiado, setLinkCopiado]             = useState(false);
 
   const previewRef = useRef(null);
   const presupuestoIdRef = useRef(null);
@@ -183,6 +184,15 @@ export default function Tarifario() {
       codigoRef.current = null;
     }
   }, [seleccionados]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedId = params.get("p");
+    if (!sharedId) return;
+    fetch(`/api/presupuestos?id=${sharedId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); } });
+  }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────
   const clienteActual   = clientes.find(c => c.id === clienteId) || null;
@@ -407,6 +417,14 @@ export default function Tarifario() {
     setVista("preview");
   };
 
+  const copiarLink = (id) => {
+    const url = `${window.location.origin}${window.location.pathname}?p=${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopiado(true);
+      setTimeout(() => setLinkCopiado(false), 2000);
+    });
+  };
+
   const irAPreview = () => {
     setPresupuestoVista(null);
     setVista("preview");
@@ -468,11 +486,20 @@ export default function Tarifario() {
 
   const guardarPDF = async () => {
     if (!previewRef.current) return;
+    // Update status first, before PDF generation, so it always runs
+    if (presupuestoVista) {
+      const updated = { ...presupuestoVista, status: "exportado" };
+      fetch("/api/presupuestos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
+      setPresupuestoVista(updated);
+      setHistorial(prev => prev.map(p => p.id === updated.id ? { ...p, status: "exportado" } : p));
+    } else {
+      await guardarEnHistorial("exportado", true);
+    }
     const html2pdf = (await import("html2pdf.js")).default;
     const el = previewRef.current;
     const widthMm = 210;
     const heightMm = (el.offsetHeight / el.offsetWidth) * widthMm;
-    await html2pdf()
+    html2pdf()
       .set({
         margin: 0,
         filename: `presupuesto-${slug}-${fechaArchivo}.pdf`,
@@ -482,14 +509,6 @@ export default function Tarifario() {
       })
       .from(el)
       .save();
-    if (presupuestoVista) {
-      const updated = { ...presupuestoVista, status: "exportado" };
-      await fetch("/api/presupuestos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
-      setPresupuestoVista(updated);
-      setHistorial(prev => prev.map(p => p.id === updated.id ? { ...p, status: "exportado" } : p));
-    } else {
-      guardarEnHistorial("exportado", true);
-    }
   };
 
   // datos que se usan en el preview (live o desde historial)
@@ -521,7 +540,6 @@ export default function Tarifario() {
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
           <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }}  style={s.btn(vista === "builder")}>Armar</button>
-          <button onClick={() => { setSeleccionados({}); setNombrePresupuesto(""); setClienteId(""); presupuestoIdRef.current = null; codigoRef.current = null; setVista("builder"); }} style={s.btn(false, TM)}>+ Nuevo</button>
           <button onClick={irAPreview}  style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
           <button onClick={entrarEdicion}               style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
           <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
@@ -748,6 +766,12 @@ export default function Tarifario() {
 
               {/* Columna derecha */}
               <div style={{ flex: "1", minWidth: "165px" }}>
+                <button
+                  onClick={() => { setSeleccionados({}); setNombrePresupuesto(""); setClienteId(""); presupuestoIdRef.current = null; codigoRef.current = null; }}
+                  style={{ width: "100%", padding: "8px", marginBottom: "14px", background: "transparent", border: `1px dashed ${BDM}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
+                >
+                  + Nuevo presupuesto
+                </button>
                 <label style={s.label}>Cliente</label>
                 <select
                   value={clienteId}
@@ -1070,6 +1094,14 @@ export default function Tarifario() {
             >
               ← {presupuestoVista ? "Historial" : "Volver"}
             </button>
+            {(presupuestoVista?.id || presupuestoIdRef.current) && (
+              <button
+                onClick={() => copiarLink(presupuestoVista?.id || presupuestoIdRef.current)}
+                style={{ padding: "9px 20px", background: linkCopiado ? `${CYN}20` : "transparent", border: `1px solid ${linkCopiado ? CYN + "60" : BD}`, borderRadius: "2px", color: linkCopiado ? CYN : TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", transition: "all 0.2s" }}
+              >
+                {linkCopiado ? "✓ Copiado" : "⎘ Link"}
+              </button>
+            )}
             <button onClick={guardarPDF} style={{ padding: "9px 24px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "600" }}>
               ↓ Generar PDF
             </button>
@@ -1114,6 +1146,7 @@ export default function Tarifario() {
                     </span>
                   </div>
                 </div>
+                <button onClick={() => copiarLink(pres.id)} style={{ padding: "7px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>⎘</button>
                 <button
                   onClick={() => abrirDesdeHistorial(pres)}
                   style={{ padding: "7px 16px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}

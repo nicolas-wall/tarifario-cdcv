@@ -18,6 +18,19 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "GET") {
+    const { id } = req.query;
+    if (id) {
+      const { blobs } = await list({ prefix: `presupuestos/${id}.json` });
+      if (!blobs.length) return res.status(404).json({ error: "Not found" });
+      try {
+        const result = await get(blobs[0].url, { access: "private" });
+        if (!result) return res.status(404).json({ error: "Not found" });
+        const text = await new Response(result.stream).text();
+        return res.status(200).json(JSON.parse(text));
+      } catch (e) {
+        return res.status(500).json({ error: e.message });
+      }
+    }
     const { blobs } = await list({ prefix: "presupuestos/" });
     const items = await Promise.all(
       blobs.map(async (b) => {
