@@ -1,4 +1,4 @@
-import { put, list, del, head } from "@vercel/blob";
+import { put, list, del, get } from "@vercel/blob";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -22,10 +22,10 @@ export default async function handler(req, res) {
     const items = await Promise.all(
       blobs.map(async (b) => {
         try {
-          const info = await head(b.url);
-          const r = await fetch(info.downloadUrl);
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const d = await r.json();
+          const result = await get(b.url, { access: "private" });
+          if (!result) return null;
+          const text = await new Response(result.stream).text();
+          const d = JSON.parse(text);
           return { ...d, blobUrl: b.url };
         } catch (e) {
           console.error("Error reading blob:", b.url, e.message);
