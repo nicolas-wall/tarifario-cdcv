@@ -142,6 +142,21 @@ export default function Tarifario() {
   const [presupuestoVista, setPresupuestoVista]   = useState(null); // budget abierto desde historial
 
   const previewRef = useRef(null);
+  const presupuestoIdRef = useRef(null);
+  const codigoRef = useRef(null);
+
+  const ensurePresupuestoId = () => {
+    if (!presupuestoIdRef.current) {
+      const now = new Date();
+      const yy = String(now.getFullYear()).slice(2);
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      const rnd = String(Math.floor(Math.random() * 900) + 100);
+      presupuestoIdRef.current = `pres_${Date.now()}`;
+      codigoRef.current = `DE-${yy}${mm}${dd}-${rnd}`;
+    }
+    return { id: presupuestoIdRef.current, codigo: codigoRef.current };
+  };
 
   // ── Fonts ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -161,6 +176,13 @@ export default function Tarifario() {
       setCategoriaAbierta(Object.keys(tarifario)[0] || "");
     }
   }, [tarifario]);
+
+  useEffect(() => {
+    if (Object.keys(seleccionados).length === 0) {
+      presupuestoIdRef.current = null;
+      codigoRef.current = null;
+    }
+  }, [seleccionados]);
 
   // ── Derived ────────────────────────────────────────────────────────────
   const clienteActual   = clientes.find(c => c.id === clienteId) || null;
@@ -337,8 +359,8 @@ export default function Tarifario() {
     cargarHistorial();
   };
 
-  const guardarEnHistorial = async () => {
-    const id = `pres_${Date.now()}`;
+  const guardarEnHistorial = async (status = "brief", silent = false) => {
+    const { id, codigo } = ensurePresupuestoId();
     const itemsData = Object.values(seleccionados).map(({ item, cantidad, descripcion, descuento = 0 }) => {
       const vivo = Object.values(tarifario).flat().find(i => i.id === item.id) || item;
       const pf = precioFinal(vivo);
@@ -347,6 +369,8 @@ export default function Tarifario() {
     });
     const payload = {
       id,
+      codigo,
+      status,
       fechaISO: new Date().toISOString(),
       fecha: new Date().toLocaleDateString("es-AR"),
       nombrePresupuesto,
@@ -365,9 +389,11 @@ export default function Tarifario() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (r.ok) alert("Presupuesto guardado en el historial ✓");
-      else alert("Error al guardar. Verificá la conexión.");
-    } catch { alert("Sin conexión con el servidor."); }
+      if (!silent) {
+        if (r.ok) alert("Presupuesto guardado en el historial ✓");
+        else alert("Error al guardar. Verificá la conexión.");
+      }
+    } catch { if (!silent) alert("Sin conexión con el servidor."); }
   };
 
   const eliminarDelHistorial = async (blobUrl) => {
@@ -379,6 +405,14 @@ export default function Tarifario() {
   const abrirDesdeHistorial = (pres) => {
     setPresupuestoVista(pres);
     setVista("preview");
+  };
+
+  const irAPreview = () => {
+    setPresupuestoVista(null);
+    setVista("preview");
+    if (Object.keys(seleccionados).length > 0) {
+      guardarEnHistorial("brief", true);
+    }
   };
 
   // ── Exportar ───────────────────────────────────────────────────────────
@@ -438,7 +472,7 @@ export default function Tarifario() {
     const el = previewRef.current;
     const widthMm = 210;
     const heightMm = (el.offsetHeight / el.offsetWidth) * widthMm;
-    html2pdf()
+    await html2pdf()
       .set({
         margin: 0,
         filename: `presupuesto-${slug}-${fechaArchivo}.pdf`,
@@ -448,6 +482,14 @@ export default function Tarifario() {
       })
       .from(el)
       .save();
+    if (presupuestoVista) {
+      const updated = { ...presupuestoVista, status: "exportado" };
+      await fetch("/api/presupuestos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
+      setPresupuestoVista(updated);
+      setHistorial(prev => prev.map(p => p.id === updated.id ? { ...p, status: "exportado" } : p));
+    } else {
+      guardarEnHistorial("exportado", true);
+    }
   };
 
   // datos que se usan en el preview (live o desde historial)
@@ -479,7 +521,7 @@ export default function Tarifario() {
         </div>
         <div style={{ display: "flex", gap: "6px" }}>
           <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }}  style={s.btn(vista === "builder")}>Armar</button>
-          <button onClick={() => { setPresupuestoVista(null); setVista("preview"); }}  style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
+          <button onClick={irAPreview}  style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
           <button onClick={entrarEdicion}               style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
           <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
           <button onClick={abrirHistorial} style={s.btn(vista === "historial", TM)}>Historial</button>
@@ -885,7 +927,7 @@ export default function Tarifario() {
                   </div>
                 </div>
 
-                <button onClick={() => setVista("preview")} style={{ marginTop: "12px", width: "100%", padding: "14px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer", fontFamily: MONO, fontWeight: "600" }}>
+                <button onClick={irAPreview} style={{ marginTop: "12px", width: "100%", padding: "14px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer", fontFamily: MONO, fontWeight: "600" }}>
                   Ver presupuesto →
                 </button>
               </>
@@ -901,6 +943,7 @@ export default function Tarifario() {
         const pvNombre         = dp?.nombrePresupuesto ?? nombrePresupuesto;
         const pvFecha          = dp?.fecha      || new Date().toLocaleDateString("es-AR");
         const pvTotalNeto      = dp?.totalNeto  ?? totalNeto;
+        const pvCodigo         = dp?.codigo     || codigoRef.current;
         const pvItems          = dp
           ? dp.items.map(i => ({ id: i.id, nombre: i.nombre, cantidad: i.cantidad, descripcion: i.descripcion, precioFinal: i.precioFinal }))
           : Object.values(seleccionados).map(({ item, cantidad, descripcion }) => {
@@ -931,7 +974,8 @@ export default function Tarifario() {
                 {pvNombre && <div style={{ fontSize: "12px", color: TM, fontFamily: MONO }}>{pvNombre}</div>}
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginBottom: "16px" }}>{pvFecha}</div>
+                <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginBottom: "4px" }}>{pvFecha}</div>
+                {pvCodigo && <div style={{ fontSize: "11px", color: MAG, fontFamily: MONO, letterSpacing: "0.1em", marginBottom: "12px" }}>{pvCodigo}</div>}
                 {pvCliente?.direccion && <div style={{ fontSize: "13px", color: T, fontFamily: MONO }}>{pvCliente.direccion}</div>}
                 {pvCliente?.telefono  && <div style={{ fontSize: "13px", color: T, fontFamily: MONO, marginTop: "4px" }}>{pvCliente.telefono}</div>}
               </div>
@@ -1025,11 +1069,6 @@ export default function Tarifario() {
             >
               ← {presupuestoVista ? "Historial" : "Volver"}
             </button>
-            {!presupuestoVista && (
-              <button onClick={guardarEnHistorial} style={{ padding: "9px 24px", background: `${CYN}15`, border: `1px solid ${CYN}40`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "600" }}>
-                ↑ Guardar en historial
-              </button>
-            )}
             <button onClick={guardarPDF} style={{ padding: "9px 24px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "600" }}>
               ↓ Generar PDF
             </button>
@@ -1064,10 +1103,14 @@ export default function Tarifario() {
                     {pres.cliente?.nombre || "Sin cliente"}
                     {pres.nombrePresupuesto && <span style={{ fontSize: "13px", color: TM, fontFamily: MONO, fontWeight: "400", marginLeft: "10px" }}>{pres.nombrePresupuesto}</span>}
                   </div>
-                  <div style={{ marginTop: "4px", fontSize: "12px", color: TM, fontFamily: MONO, display: "flex", gap: "16px" }}>
+                  <div style={{ marginTop: "4px", fontSize: "12px", color: TM, fontFamily: MONO, display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
                     <span>{pres.fecha}</span>
+                    {pres.codigo && <span style={{ color: MAG, letterSpacing: "0.08em" }}>{pres.codigo}</span>}
                     <span style={{ color: CLIENTE_TIPOS[pres.clienteTipo]?.color }}>{pres.clienteTipo} · {pres.porcEstudio > 0 ? `+${pres.porcEstudio}% estudio` : "sin recargo"}</span>
                     <span style={{ color: MAG }}>{fmt(pres.totalNeto * 1.21)} c/IVA</span>
+                    <span style={{ padding: "2px 8px", borderRadius: "2px", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase", background: pres.status === "exportado" ? `${CYN}20` : `${TVM}`, color: pres.status === "exportado" ? CYN : TM, border: `1px solid ${pres.status === "exportado" ? CYN + "40" : BD}` }}>
+                      {pres.status === "exportado" ? "Exportado" : "Brief"}
+                    </span>
                   </div>
                 </div>
                 <button
