@@ -742,6 +742,14 @@ export default function Tarifario() {
           {/* Panel izquierdo */}
           <div style={{ width: "57%", overflowY: "auto", borderRight: `1px solid ${BD}`, padding: "24px 24px 60px" }}>
 
+            {/* Nuevo presupuesto */}
+            <button
+              onClick={() => { setSeleccionados({}); setNombrePresupuesto(""); setClienteId(""); presupuestoIdRef.current = null; codigoRef.current = null; }}
+              style={{ display: "block", width: "100%", padding: "11px", marginBottom: "12px", background: "transparent", border: `1px dashed ${BDM}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.14em", textTransform: "uppercase" }}
+            >
+              + Nuevo presupuesto
+            </button>
+
             {/* Config */}
             <div style={{ background: S1, border: `1px solid ${BD}`, borderRadius: "2px", padding: "16px", marginBottom: "20px", display: "flex", gap: "16px", flexWrap: "wrap" }}>
               {/* Columna izquierda: tipo */}
@@ -766,12 +774,6 @@ export default function Tarifario() {
 
               {/* Columna derecha */}
               <div style={{ flex: "1", minWidth: "165px" }}>
-                <button
-                  onClick={() => { setSeleccionados({}); setNombrePresupuesto(""); setClienteId(""); presupuestoIdRef.current = null; codigoRef.current = null; }}
-                  style={{ width: "100%", padding: "8px", marginBottom: "14px", background: "transparent", border: `1px dashed ${BDM}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
-                >
-                  + Nuevo presupuesto
-                </button>
                 <label style={s.label}>Cliente</label>
                 <select
                   value={clienteId}
