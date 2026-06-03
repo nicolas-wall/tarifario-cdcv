@@ -110,6 +110,57 @@ const guardarJSON = (key, data) => {
 };
 // ─────────────────────────────────────────────────────────────────────────
 
+function LoginScreen({ onLogin }) {
+  const [pwd, setPwd]     = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const r = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pwd }),
+      });
+      if (r.ok) { onLogin(); }
+      else { const d = await r.json(); setError(d.error || "Error"); }
+    } catch { setError("Sin conexión con el servidor."); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: BG, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: SANS }}>
+      <div style={{ width: "340px", padding: "40px", background: S1, border: `1px solid ${BDM}`, borderRadius: "2px" }}>
+        <div style={{ marginBottom: "32px", display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+          <DELogo height={36} fill={T} />
+          <span style={{ fontSize: "11px", color: TM, letterSpacing: "0.16em", textTransform: "uppercase", fontFamily: MONO }}>Acceso restringido</span>
+        </div>
+        <form onSubmit={submit}>
+          <input
+            type="password"
+            value={pwd}
+            onChange={e => setPwd(e.target.value)}
+            placeholder="Contraseña"
+            autoFocus
+            style={{ width: "100%", padding: "11px 14px", background: BG, border: `1px solid ${BDM}`, borderRadius: "2px", color: T, fontSize: "15px", fontFamily: MONO, outline: "none", marginBottom: "12px", boxSizing: "border-box" }}
+          />
+          {error && <div style={{ fontSize: "12px", color: "#ff5050", fontFamily: MONO, marginBottom: "10px" }}>{error}</div>}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{ width: "100%", padding: "11px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "12px", fontFamily: MONO, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer", opacity: loading ? 0.6 : 1 }}
+          >
+            {loading ? "..." : "Ingresar"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function Tarifario() {
   // ── State ──────────────────────────────────────────────────────────────
   const [tarifario, setTarifario]         = useState(() => cargarJSON(TAR_KEY) || TARIFARIO_INICIAL);
@@ -142,6 +193,7 @@ export default function Tarifario() {
   const [presupuestoVista, setPresupuestoVista]   = useState(null);
   const [linkCopiado, setLinkCopiado]             = useState(false);
   const [vistaPublica, setVistaPublica]           = useState(false);
+  const [autenticado, setAutenticado]             = useState(false);
 
   const previewRef = useRef(null);
   const presupuestoIdRef = useRef(null);
@@ -187,6 +239,11 @@ export default function Tarifario() {
       codigoRef.current = null;
     }
   }, [seleccionados]);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("p")) return;
+    fetch("/api/auth").then(r => r.json()).then(d => { if (d.authenticated) setAutenticado(true); });
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -532,6 +589,11 @@ export default function Tarifario() {
   };
 
   // ══════════════════════════════════════════════════════════════════════
+  const esPublica = new URLSearchParams(window.location.search).has("p");
+  if (!esPublica && !autenticado) {
+    return <LoginScreen onLogin={() => setAutenticado(true)} />;
+  }
+
   return (
     <div style={s.page}>
 
