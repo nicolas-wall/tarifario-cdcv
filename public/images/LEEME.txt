@@ -1,0 +1,13 @@
+Imágenes del presupuesto
+========================
+
+Colocar aquí:
+
+  presupuesto-header.jpg  → imagen de fondo del encabezado del presupuesto
+                            (el logo DE se superpone centrado sobre ella)
+
+  presupuesto-footer.jpg  → imagen de fondo del pie del presupuesto
+                            (el email info@doselementos.com se superpone)
+
+Recomendación: imágenes apaisadas, 1400 x 400 px mínimo, JPG/PNG/WEBP.
+Si no hay imagen, el área muestra un fondo oscuro por defecto.
