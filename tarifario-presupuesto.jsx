@@ -462,9 +462,9 @@ export default function Tarifario() {
       });
       if (!silent) {
         if (r.ok) alert("Presupuesto guardado en el historial ✓");
-        else alert("Error al guardar. Verificá la conexión.");
+        else { const txt = await r.text(); alert(`Error ${r.status}: ${txt}`); }
       }
-    } catch { if (!silent) alert("Sin conexión con el servidor."); }
+    } catch (e) { if (!silent) alert(`Sin conexión: ${e.message}`); }
   };
 
   const eliminarDelHistorial = async (blobUrl) => {
@@ -554,11 +554,11 @@ export default function Tarifario() {
       });
       if (!r.ok) {
         const txt = await r.text();
-        console.error("Error al actualizar estado:", r.status, txt);
+        alert(`Error al marcar como exportado (${r.status}): ${txt}`);
       }
       return r.ok;
     } catch (e) {
-      console.error("Error de red al actualizar estado:", e);
+      alert(`Error de red al marcar como exportado: ${e.message}`);
       return false;
     }
   };
