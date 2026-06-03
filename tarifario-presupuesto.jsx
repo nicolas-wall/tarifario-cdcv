@@ -545,19 +545,36 @@ export default function Tarifario() {
     URL.revokeObjectURL(url);
   };
 
+  const actualizarStatusExportado = async (payload) => {
+    try {
+      const r = await fetch("/api/presupuestos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        console.error("Error al actualizar estado:", r.status, txt);
+      }
+      return r.ok;
+    } catch (e) {
+      console.error("Error de red al actualizar estado:", e);
+      return false;
+    }
+  };
+
   const guardarPDF = async () => {
     if (!previewRef.current) return;
     if (presupuestoVista) {
       const updated = { ...presupuestoVista, status: "exportado" };
-      const r = await fetch("/api/presupuestos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(updated) });
-      if (r.ok) {
+      const ok = await actualizarStatusExportado(updated);
+      if (ok) {
         setPresupuestoVista(updated);
         setHistorial(prev => prev.map(p => p.id === updated.id ? { ...p, status: "exportado" } : p));
       }
     } else {
-      // Wait for any pending auto-save to finish before overwriting with exportado
       if (autoSaveRef.current) { await autoSaveRef.current; autoSaveRef.current = null; }
-      await guardarEnHistorial("exportado", true);
+      await guardarEnHistorial("exportado", false);
     }
     const html2pdf = (await import("html2pdf.js")).default;
     const el = previewRef.current;
@@ -1217,7 +1234,7 @@ export default function Tarifario() {
                     </span>
                   </div>
                 </div>
-                <button onClick={() => copiarLink(pres.id)} style={{ padding: "7px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>⎘</button>
+                <button onClick={() => copiarLink(pres.id)} style={{ padding: "7px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>Link</button>
                 <button
                   onClick={() => abrirDesdeHistorial(pres)}
                   style={{ padding: "7px 16px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}
