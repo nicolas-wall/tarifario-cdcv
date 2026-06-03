@@ -435,15 +435,18 @@ export default function Tarifario() {
   const guardarPDF = async () => {
     if (!previewRef.current) return;
     const html2pdf = (await import("html2pdf.js")).default;
+    const el = previewRef.current;
+    const widthMm = 210;
+    const heightMm = (el.scrollHeight / el.offsetWidth) * widthMm;
     html2pdf()
       .set({
         margin: 0,
         filename: `presupuesto-${slug}-${fechaArchivo}.pdf`,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: "#111111" },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        jsPDF: { unit: "mm", format: [widthMm, heightMm], orientation: "portrait" },
       })
-      .from(previewRef.current)
+      .from(el)
       .save();
   };
 
