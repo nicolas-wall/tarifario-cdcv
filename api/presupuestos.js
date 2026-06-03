@@ -1,5 +1,15 @@
 import { put, list, del, get } from "@vercel/blob";
-import { isAuthenticated } from "./_auth.js";
+import { createHash } from "node:crypto";
+
+function isAuthenticated(req) {
+  const cookies = req.headers.cookie || "";
+  const match = cookies.match(/cdcv_auth=([^;]+)/);
+  if (!match) return false;
+  const expected = createHash("sha256")
+    .update((process.env.APP_PASSWORD || "") + "cdcv-2025")
+    .digest("hex");
+  return match[1] === expected;
+}
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

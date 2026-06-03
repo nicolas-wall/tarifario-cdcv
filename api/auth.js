@@ -1,4 +1,16 @@
-import { tokenDePassword, isAuthenticated } from "./_auth.js";
+import { createHash } from "node:crypto";
+
+function tokenDePassword() {
+  return createHash("sha256")
+    .update((process.env.APP_PASSWORD || "") + "cdcv-2025")
+    .digest("hex");
+}
+
+function isAuthenticated(req) {
+  const cookies = req.headers.cookie || "";
+  const match = cookies.match(/cdcv_auth=([^;]+)/);
+  return !!match && match[1] === tokenDePassword();
+}
 
 export default function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
