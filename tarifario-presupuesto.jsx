@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
 
 // ── Logo mark (fallback si no carga la imagen) ────────────────────────────
 const DELogo = ({ height, width, fill = "#E6E6E6" }) => {
@@ -199,6 +200,7 @@ export default function Tarifario() {
   const presupuestoIdRef = useRef(null);
   const codigoRef = useRef(null);
   const autoSaveRef = useRef(null);
+  const importInputRef = useRef(null);
 
   const ensurePresupuestoId = () => {
     if (!presupuestoIdRef.current) {
@@ -316,6 +318,58 @@ export default function Tarifario() {
     setNuevoItemForm(forms);
     setNuevaCat("");
     setVista("editar");
+  };
+
+  const exportarExcel = () => {
+    const rows = [];
+    Object.entries(editTar || tarifario).forEach(([cat, items]) => {
+      items.forEach(item => {
+        rows.push({ "Categoría": cat, "Nombre": item.nombre, "Precio (ARS)": item.precio });
+      });
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [{ wch: 28 }, { wch: 60 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Tarifario");
+    XLSX.writeFile(wb, `tarifario-DE-${new Date().toLocaleDateString("es-AR").replace(/\//g, "-")}.xlsx`);
+  };
+
+  const importarExcel = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: "array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws);
+        const nuevo = {};
+        rows.forEach(row => {
+          const cat    = String(row["Categoría"] || row["Categoria"] || row["categoria"] || "").trim();
+          const nombre = String(row["Nombre"] || row["nombre"] || "").trim();
+          const precioRaw = row["Precio (ARS)"] ?? row["Precio"] ?? row["precio"] ?? 0;
+          const precio = parseInt(String(precioRaw).replace(/\D/g, "")) || 0;
+          if (!cat || !nombre) return;
+          if (!nuevo[cat]) nuevo[cat] = [];
+          const existing = Object.values(tarifario).flat().find(i => i.nombre === nombre);
+          nuevo[cat].push({ id: existing?.id || nuevoId("item"), nombre, precio });
+        });
+        if (Object.keys(nuevo).length === 0) {
+          alert("No se encontraron datos válidos. Verificá que el archivo tenga columnas: Categoría, Nombre, Precio (ARS).");
+          return;
+        }
+        const totalItems = Object.values(nuevo).flat().length;
+        if (!window.confirm(`¿Importar ${Object.keys(nuevo).length} categorías con ${totalItems} ítems? Reemplazará el tarifario en edición.`)) return;
+        setEditTar(nuevo);
+        const forms = {};
+        Object.keys(nuevo).forEach(cat => { forms[cat] = { nombre: "", precio: "" }; });
+        setNuevoItemForm(forms);
+      } catch (err) {
+        alert(`Error al leer el archivo: ${err.message}`);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
   };
 
   const guardarEdicion = () => {
@@ -644,7 +698,10 @@ export default function Tarifario() {
                 <div style={{ fontFamily: DISPLAY, fontSize: "22px", fontWeight: "700", color: T, letterSpacing: "-0.02em", marginBottom: "4px" }}>Editar tarifario</div>
                 <div style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>Precios base para cliente B — A (+35%) y C (−35%) se calculan automáticamente</div>
               </div>
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button onClick={exportarExcel} style={s.btn(false, CYN)}>↓ Excel</button>
+                <button onClick={() => importInputRef.current?.click()} style={s.btn(false, CYN)}>↑ Importar</button>
+                <input ref={importInputRef} type="file" accept=".xlsx,.xls" onChange={importarExcel} style={{ display: "none" }} />
                 <button onClick={resetearTarifario} style={s.btn(false, TM)}>↺ Resetear</button>
                 <button onClick={() => setVista("builder")} style={s.btn(false, TM)}>Cancelar</button>
                 <button onClick={guardarEdicion} style={{ padding: "8px 20px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, fontWeight: "600", letterSpacing: "0.12em", textTransform: "uppercase" }}>
