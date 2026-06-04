@@ -193,6 +193,7 @@ export default function Tarifario() {
   const [cargandoHistorial, setCargandoHistorial] = useState(false);
   const [presupuestoVista, setPresupuestoVista]   = useState(null);
   const [linkCopiado, setLinkCopiado]             = useState(false);
+  const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [vistaPublica, setVistaPublica]           = useState(false);
   const [autenticado, setAutenticado]             = useState(false);
 
@@ -208,11 +209,15 @@ export default function Tarifario() {
       const yy = String(now.getFullYear()).slice(2);
       const mm = String(now.getMonth() + 1).padStart(2, "0");
       const dd = String(now.getDate()).padStart(2, "0");
-      const rnd = String(Math.floor(Math.random() * 900) + 100);
+      const dateKey = `${yy}${mm}${dd}`;
+      const counterKey = `de-counter-${dateKey}`;
+      const next = (parseInt(localStorage.getItem(counterKey) || "0") + 1);
+      localStorage.setItem(counterKey, String(next));
+      const seq = String(next).padStart(3, "0");
       const token = Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map(b => b.toString(16).padStart(2, "0")).join("");
       presupuestoIdRef.current = `pres_${token}`;
-      codigoRef.current = `DE-${yy}${mm}${dd}-${rnd}`;
+      codigoRef.current = `DE-${yy}${mm}${dd}-${seq}`;
     }
     return { id: presupuestoIdRef.current, codigo: codigoRef.current };
   };
@@ -530,6 +535,25 @@ export default function Tarifario() {
   const abrirDesdeHistorial = (pres) => {
     setPresupuestoVista(pres);
     setVista("preview");
+  };
+
+  const editarDesdeHistorial = (pres) => {
+    presupuestoIdRef.current = pres.id;
+    codigoRef.current = pres.codigo || null;
+    setClienteTipo(pres.clienteTipo || "B");
+    setPorcEstudio(pres.porcEstudio || 0);
+    setNombrePresupuesto(pres.nombrePresupuesto || "");
+    const clienteMatch = clientes.find(c => c.id === pres.cliente?.id);
+    setClienteId(clienteMatch?.id || "");
+    const nuevos = {};
+    (pres.items || []).forEach(saved => {
+      const vivo = Object.values(tarifario).flat().find(i => i.id === saved.id)
+        || { id: saved.id, nombre: saved.nombre, precio: saved.precio };
+      nuevos[saved.id] = { item: vivo, cantidad: saved.cantidad, descripcion: saved.descripcion || "", descuento: saved.descuento || 0 };
+    });
+    setSeleccionados(nuevos);
+    setPresupuestoVista(null);
+    setVista("builder");
   };
 
   const copiarLink = (id) => {
@@ -1257,10 +1281,23 @@ export default function Tarifario() {
       {/* ══════════════ HISTORIAL ══════════════ */}
       {vista === "historial" && (
         <div style={{ flex: 1, overflowY: "auto", padding: "32px 28px" }}>
-          <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+          <div style={{ maxWidth: "1040px", margin: "0 auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <div style={{ fontFamily: DISPLAY, fontSize: "22px", fontWeight: "700", color: T, letterSpacing: "-0.02em" }}>Historial</div>
               <button onClick={cargarHistorial} style={s.btn(false, TM)}>↺ Actualizar</button>
+            </div>
+
+            {/* Buscador */}
+            <div style={{ position: "relative", marginBottom: "20px" }}>
+              <input
+                placeholder="Buscar por código (DE-YYMMDD-NNN)..."
+                value={busquedaHistorial}
+                onChange={e => setBusquedaHistorial(e.target.value)}
+                style={{ ...s.input, padding: "10px 36px 10px 14px" }}
+              />
+              {busquedaHistorial && (
+                <button onClick={() => setBusquedaHistorial("")} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: TM, cursor: "pointer", fontSize: "14px" }}>✕</button>
+              )}
             </div>
 
             {cargandoHistorial && (
@@ -1273,33 +1310,52 @@ export default function Tarifario() {
               </div>
             )}
 
-            {historial.map((pres) => (
-              <div key={pres.id} style={{ padding: "16px 20px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", marginBottom: "6px", display: "flex", alignItems: "center", gap: "16px" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: "16px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em" }}>
-                    {pres.cliente?.nombre || "Sin cliente"}
-                    {pres.nombrePresupuesto && <span style={{ fontSize: "13px", color: TM, fontFamily: MONO, fontWeight: "400", marginLeft: "10px" }}>{pres.nombrePresupuesto}</span>}
-                  </div>
-                  <div style={{ marginTop: "4px", fontSize: "12px", color: TM, fontFamily: MONO, display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
-                    <span>{pres.fecha}</span>
-                    {pres.codigo && <span style={{ color: MAG, letterSpacing: "0.08em" }}>{pres.codigo}</span>}
-                    <span style={{ color: CLIENTE_TIPOS[pres.clienteTipo]?.color }}>{pres.clienteTipo} · {pres.porcEstudio > 0 ? `+${pres.porcEstudio}% estudio` : "sin recargo"}</span>
-                    <span style={{ color: MAG }}>{fmt(pres.totalNeto * 1.21)} c/IVA</span>
-                    <span style={{ padding: "2px 8px", borderRadius: "2px", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase", background: pres.status === "exportado" ? `${CYN}20` : `${TVM}`, color: pres.status === "exportado" ? CYN : TM, border: `1px solid ${pres.status === "exportado" ? CYN + "40" : BD}` }}>
-                      {pres.status === "exportado" ? "Exportado" : "Brief"}
-                    </span>
-                  </div>
+            {(() => {
+              const filtrado = busquedaHistorial
+                ? historial.filter(p => p.codigo?.toLowerCase().includes(busquedaHistorial.toLowerCase()))
+                : historial;
+              if (busquedaHistorial && filtrado.length === 0) return (
+                <div style={{ padding: "32px 16px", textAlign: "center", color: TVM, fontSize: "13px", border: `1px dashed ${BD}`, borderRadius: "2px", fontFamily: MONO }}>
+                  Sin resultados para "{busquedaHistorial}"
                 </div>
-                <button onClick={() => copiarLink(pres.id)} style={{ padding: "7px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>Link</button>
-                <button
-                  onClick={() => abrirDesdeHistorial(pres)}
-                  style={{ padding: "7px 16px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}
-                >
-                  Ver / PDF
-                </button>
-                <button onClick={() => eliminarDelHistorial(pres.blobUrl)} style={s.iconBtn("rgba(255,80,80,0.5)")}>✕</button>
-              </div>
-            ))}
+              );
+              return filtrado.map((pres) => (
+                <div key={pres.id} style={{ padding: "13px 18px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", marginBottom: "4px", display: "flex", alignItems: "center", gap: "12px" }}>
+                  {/* Info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "nowrap", overflow: "hidden" }}>
+                      <span style={{ fontSize: "15px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+                        {pres.cliente?.nombre || "Sin cliente"}
+                      </span>
+                      {pres.codigo && (
+                        <span style={{ fontSize: "11px", color: MAG, fontFamily: MONO, letterSpacing: "0.1em", whiteSpace: "nowrap", flexShrink: 0 }}>{pres.codigo}</span>
+                      )}
+                      {pres.nombrePresupuesto && (
+                        <span style={{ fontSize: "12px", color: TM, fontFamily: MONO, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pres.nombrePresupuesto}</span>
+                      )}
+                    </div>
+                    <div style={{ marginTop: "3px", fontSize: "12px", color: TM, fontFamily: MONO, display: "flex", gap: "12px", alignItems: "center" }}>
+                      <span>{pres.fecha}</span>
+                      <span style={{ color: CLIENTE_TIPOS[pres.clienteTipo]?.color }}>{pres.clienteTipo}{pres.porcEstudio > 0 ? ` +${pres.porcEstudio}%` : ""}</span>
+                      <span style={{ color: MAG }}>{fmt(pres.totalNeto * 1.21)} c/IVA</span>
+                    </div>
+                  </div>
+                  {/* Status */}
+                  <span style={{ padding: "3px 10px", borderRadius: "2px", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0, background: pres.status === "exportado" ? `${CYN}20` : `${TVM}20`, color: pres.status === "exportado" ? CYN : TM, border: `1px solid ${pres.status === "exportado" ? CYN + "40" : BD}` }}>
+                    {pres.status === "exportado" ? "Exportado" : "Brief"}
+                  </span>
+                  {/* Actions */}
+                  {pres.status !== "exportado" && (
+                    <button onClick={() => editarDesdeHistorial(pres)} style={{ padding: "6px 12px", background: `${MAG}12`, border: `1px solid ${MAG}35`, borderRadius: "2px", color: MAG, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Editar</button>
+                  )}
+                  <button onClick={() => copiarLink(pres.id)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Link</button>
+                  <button onClick={() => abrirDesdeHistorial(pres)} style={{ padding: "6px 14px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                    Ver / PDF
+                  </button>
+                  <button onClick={() => eliminarDelHistorial(pres.blobUrl)} style={{ ...s.iconBtn("rgba(255,80,80,0.5)"), flexShrink: 0 }}>✕</button>
+                </div>
+              ));
+            })()}
           </div>
         </div>
       )}
