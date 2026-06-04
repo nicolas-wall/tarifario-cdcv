@@ -208,16 +208,14 @@ export default function Tarifario() {
       const now = new Date();
       const yy = String(now.getFullYear()).slice(2);
       const mm = String(now.getMonth() + 1).padStart(2, "0");
-      const dd = String(now.getDate()).padStart(2, "0");
-      const dateKey = `${yy}${mm}${dd}`;
-      const counterKey = `de-counter-${dateKey}`;
+      const counterKey = `de-counter-${yy}${mm}`;
       const next = (parseInt(localStorage.getItem(counterKey) || "0") + 1);
       localStorage.setItem(counterKey, String(next));
       const seq = String(next).padStart(3, "0");
       const token = Array.from(crypto.getRandomValues(new Uint8Array(16)))
         .map(b => b.toString(16).padStart(2, "0")).join("");
       presupuestoIdRef.current = `pres_${token}`;
-      codigoRef.current = `DE-${yy}${mm}${dd}-${seq}`;
+      codigoRef.current = `DE-${yy}${mm}-${seq}`;
     }
     return { id: presupuestoIdRef.current, codigo: codigoRef.current };
   };
