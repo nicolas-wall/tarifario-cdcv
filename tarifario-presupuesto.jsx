@@ -702,7 +702,6 @@ export default function Tarifario() {
                 <button onClick={exportarExcel} style={s.btn(false, CYN)}>↓ Excel</button>
                 <button onClick={() => importInputRef.current?.click()} style={s.btn(false, CYN)}>↑ Importar</button>
                 <input ref={importInputRef} type="file" accept=".xlsx,.xls" onChange={importarExcel} style={{ display: "none" }} />
-                <button onClick={resetearTarifario} style={s.btn(false, TM)}>↺ Resetear</button>
                 <button onClick={() => setVista("builder")} style={s.btn(false, TM)}>Cancelar</button>
                 <button onClick={guardarEdicion} style={{ padding: "8px 20px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, fontWeight: "600", letterSpacing: "0.12em", textTransform: "uppercase" }}>
                   Guardar ✓

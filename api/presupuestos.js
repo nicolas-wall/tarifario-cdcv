@@ -1,5 +1,5 @@
 import { put, list, del, get } from "@vercel/blob";
-import { createHash } from "node:crypto";
+import { createHash } from "crypto";
 
 function isAuthenticated(req) {
   const cookies = req.headers.cookie || "";
@@ -12,6 +12,7 @@ function isAuthenticated(req) {
 }
 
 export default async function handler(req, res) {
+  try {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -76,4 +77,8 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).json({ error: "Method not allowed" });
+  } catch (e) {
+    console.error("presupuestos handler crash:", e);
+    return res.status(500).json({ error: e.message, cause: e.cause?.message });
+  }
 }
