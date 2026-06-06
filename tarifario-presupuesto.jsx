@@ -795,7 +795,7 @@ export default function Tarifario() {
     <div style={s.page}>
 
       {/* ── Header ────────────────────────────────────────────────── */}
-      {!vistaPublica && <header style={s.header}>
+      {!vistaPublica && !isPicker && <header style={s.header}>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <DELogo height={28} fill={T} />
           <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
@@ -834,6 +834,22 @@ export default function Tarifario() {
           )}
         </div>
       </header>}
+
+      {/* ── Picker header (minimal, only in picker mode) ──────────── */}
+      {isPicker && (
+        <div style={{ borderBottom: `1px solid ${BDM}`, padding: "12px 20px", display: "flex", alignItems: "center", gap: "12px", background: BG, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
+          <DELogo height={20} fill={TM} />
+          <span style={{ flex: 1, fontFamily: MONO, fontSize: "11px", color: TM, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            Seleccionar presupuesto
+          </span>
+          <button onClick={() => setSoloSinVincular(v => !v)}
+            style={{ padding: "4px 12px", background: soloSinVincular ? "rgba(217,0,108,0.12)" : "transparent", border: `1px solid ${soloSinVincular ? "rgba(217,0,108,0.35)" : BD}`, borderRadius: "2px", color: soloSinVincular ? MAG : TM, cursor: "pointer", fontFamily: MONO, fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+            {soloSinVincular ? "✓ Solo disponibles" : "Mostrar todos"}
+          </button>
+          <button onClick={() => window.close()}
+            style={{ background: "none", border: "none", color: TM, cursor: "pointer", fontSize: "16px", padding: "2px 6px", lineHeight: 1 }}>✕</button>
+        </div>
+      )}
 
       {/* ══════════════ EDITAR TARIFARIO ══════════════ */}
       {vista === "editar" && editTar && (
@@ -1430,21 +1446,12 @@ export default function Tarifario() {
 
       {/* ══════════════ HISTORIAL ══════════════ */}
       {vista === "historial" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "32px 28px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isPicker ? "16px 20px" : "32px 28px" }}>
           <div style={{ maxWidth: "1040px", margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isPicker ? "8px" : "20px" }}>
-              <div style={{ fontFamily: DISPLAY, fontSize: "22px", fontWeight: "700", color: T, letterSpacing: "-0.02em" }}>Historial</div>
-              <button onClick={cargarHistorial} style={s.btn(false, TM)}>↺ Actualizar</button>
-            </div>
-            {isPicker && (
-              <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "rgba(217,0,108,0.06)", border: "1px solid rgba(217,0,108,0.2)", borderRadius: "2px" }}>
-                <span style={{ flex: 1, fontFamily: MONO, fontSize: "11px", color: "rgba(217,0,108,0.8)", letterSpacing: "0.06em" }}>
-                  Seleccioná un presupuesto para vincularlo a la épica en Jobs DE
-                </span>
-                <button onClick={() => setSoloSinVincular(v => !v)}
-                  style={{ padding: "4px 12px", background: soloSinVincular ? "rgba(217,0,108,0.15)" : "transparent", border: "1px solid rgba(217,0,108,0.3)", borderRadius: "2px", color: soloSinVincular ? "#d9006c" : "rgba(217,0,108,0.5)", cursor: "pointer", fontFamily: MONO, fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                  {soloSinVincular ? "✓ Solo disponibles" : "Mostrar todos"}
-                </button>
+            {!isPicker && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                <div style={{ fontFamily: DISPLAY, fontSize: "22px", fontWeight: "700", color: T, letterSpacing: "-0.02em" }}>Historial</div>
+                <button onClick={cargarHistorial} style={s.btn(false, TM)}>↺ Actualizar</button>
               </div>
             )}
 
