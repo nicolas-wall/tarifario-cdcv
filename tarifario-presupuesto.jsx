@@ -616,7 +616,13 @@ export default function Tarifario() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!silent) {
+      if (r.ok && isPicker && !silent) {
+        window.opener?.postMessage(
+          { type: "presupuesto-selected", id: payload.id, codigo: payload.codigo, cliente: payload.cliente?.nombre || "", monto: payload.totalNeto },
+          "*"
+        );
+        abrirHistorial();
+      } else if (!silent) {
         if (r.ok) alert("Presupuesto guardado en el historial ✓");
         else { const txt = await r.text(); alert(`Error ${r.status}: ${txt}`); }
       }
@@ -840,12 +846,25 @@ export default function Tarifario() {
         <div style={{ borderBottom: `1px solid ${BDM}`, padding: "12px 20px", display: "flex", alignItems: "center", gap: "12px", background: BG, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
           <DELogo height={20} fill={TM} />
           <span style={{ flex: 1, fontFamily: MONO, fontSize: "11px", color: TM, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-            Seleccionar presupuesto
+            {vista === "builder" ? "Nuevo presupuesto" : "Seleccionar presupuesto"}
           </span>
-          <button onClick={() => setSoloSinVincular(v => !v)}
-            style={{ padding: "4px 12px", background: soloSinVincular ? "rgba(217,0,108,0.12)" : "transparent", border: `1px solid ${soloSinVincular ? "rgba(217,0,108,0.35)" : BD}`, borderRadius: "2px", color: soloSinVincular ? MAG : TM, cursor: "pointer", fontFamily: MONO, fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-            {soloSinVincular ? "✓ Solo disponibles" : "Mostrar todos"}
-          </button>
+          {vista === "builder" ? (
+            <button onClick={abrirHistorial}
+              style={{ padding: "4px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, cursor: "pointer", fontFamily: MONO, fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+              ← Volver
+            </button>
+          ) : (
+            <>
+              <button onClick={() => setSoloSinVincular(v => !v)}
+                style={{ padding: "4px 12px", background: soloSinVincular ? "rgba(217,0,108,0.12)" : "transparent", border: `1px solid ${soloSinVincular ? "rgba(217,0,108,0.35)" : BD}`, borderRadius: "2px", color: soloSinVincular ? MAG : TM, cursor: "pointer", fontFamily: MONO, fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                {soloSinVincular ? "✓ Solo disponibles" : "Mostrar todos"}
+              </button>
+              <button onClick={() => { setSeleccionados({}); setNombrePresupuesto(""); setClienteId(""); presupuestoIdRef.current = null; codigoRef.current = null; setVista("builder"); }}
+                style={{ padding: "4px 14px", background: "rgba(217,0,108,0.1)", border: "1px solid rgba(217,0,108,0.3)", borderRadius: "2px", color: MAG, cursor: "pointer", fontFamily: MONO, fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", fontWeight: "600" }}>
+                + Nuevo
+              </button>
+            </>
+          )}
           <button onClick={() => window.close()}
             style={{ background: "none", border: "none", color: TM, cursor: "pointer", fontSize: "16px", padding: "2px 6px", lineHeight: 1 }}>✕</button>
         </div>
@@ -1270,9 +1289,15 @@ export default function Tarifario() {
                   </div>
                 </div>
 
-                <button onClick={irAPreview} style={{ marginTop: "12px", width: "100%", padding: "14px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer", fontFamily: MONO, fontWeight: "600" }}>
-                  Ver presupuesto →
-                </button>
+                {isPicker ? (
+                  <button onClick={() => guardarEnHistorial("brief", false)} style={{ marginTop: "12px", width: "100%", padding: "14px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer", fontFamily: MONO, fontWeight: "600" }}>
+                    Guardar y seleccionar ✓
+                  </button>
+                ) : (
+                  <button onClick={irAPreview} style={{ marginTop: "12px", width: "100%", padding: "14px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", letterSpacing: "0.16em", textTransform: "uppercase", cursor: "pointer", fontFamily: MONO, fontWeight: "600" }}>
+                    Ver presupuesto →
+                  </button>
+                )}
               </>
             )}
           </div>
