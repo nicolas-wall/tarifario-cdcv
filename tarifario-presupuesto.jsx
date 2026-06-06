@@ -232,6 +232,16 @@ export default function Tarifario() {
   const [currentMember, setCurrentMember]         = useState(() => {
     try { return JSON.parse(localStorage.getItem("pres-member") || "null"); } catch { return null; }
   });
+  // Read URL params synchronously so they're available before effects run
+  const [pendingViewId] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const viewId = params.get("view");
+    if (viewId) window.history.replaceState({}, "", window.location.pathname);
+    return viewId || null;
+  });
+  const [isPicker] = useState(() =>
+    new URLSearchParams(window.location.search).get("picker") === "1"
+  );
 
   const previewRef = useRef(null);
   const presupuestoIdRef = useRef(null);
@@ -314,21 +324,16 @@ export default function Tarifario() {
     else localStorage.removeItem("pres-member");
   }, [currentMember]);
 
-  // After auth: open pending ?view={id}, or reload historial for picker
+  // After auth: open pending ?view={id}, or load historial for picker
   useEffect(() => {
     if (!autenticado) return;
-    if (pendingViewRef.current) {
-      const viewId = pendingViewRef.current;
-      pendingViewRef.current = null;
-      fetch(`/api/presupuestos?id=${viewId}`)
+    if (pendingViewId) {
+      fetch(`/api/presupuestos?id=${pendingViewId}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); } });
     }
     if (isPicker) cargarHistorial();
   }, [autenticado]);
-
-  const [isPicker, setIsPicker] = useState(false);
-  const pendingViewRef = useRef(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -339,16 +344,7 @@ export default function Tarifario() {
         .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); setVistaPublica(true); } });
       return;
     }
-    const viewId = params.get("view");
-    if (viewId) {
-      pendingViewRef.current = viewId;
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-    if (params.get("picker") === "1") {
-      setIsPicker(true);
-      setVista("historial");
-      cargarHistorial();
-    }
+    if (isPicker) setVista("historial");
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────
