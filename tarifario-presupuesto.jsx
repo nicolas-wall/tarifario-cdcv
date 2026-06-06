@@ -112,6 +112,8 @@ const guardarJSON = (key, data) => {
 // ─────────────────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }) {
+  const [mode, setMode]   = useState("member"); // "member" | "password"
+  const [email, setEmail] = useState("");
   const [pwd, setPwd]     = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -121,13 +123,23 @@ function LoginScreen({ onLogin }) {
     setLoading(true);
     setError("");
     try {
-      const r = await fetch("/api/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: pwd }),
-      });
-      if (r.ok) { onLogin(); }
-      else { const d = await r.json(); setError(d.error || "Error"); }
+      if (mode === "member") {
+        const r = await fetch("/api/member-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password: pwd }),
+        });
+        if (r.ok) { const d = await r.json(); onLogin(d.member); }
+        else { const d = await r.json(); setError(d.error || "Error"); }
+      } else {
+        const r = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pwd }),
+        });
+        if (r.ok) { onLogin(null); }
+        else { const d = await r.json(); setError(d.error || "Error"); }
+      }
     } catch { setError("Sin conexión con el servidor."); }
     setLoading(false);
   };
@@ -140,12 +152,22 @@ function LoginScreen({ onLogin }) {
           <span style={{ fontSize: "11px", color: TM, letterSpacing: "0.16em", textTransform: "uppercase", fontFamily: MONO }}>Acceso restringido</span>
         </div>
         <form onSubmit={submit}>
+          {mode === "member" && (
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="Email"
+              autoFocus
+              style={{ width: "100%", padding: "11px 14px", background: BG, border: `1px solid ${BDM}`, borderRadius: "2px", color: T, fontSize: "15px", fontFamily: MONO, outline: "none", marginBottom: "8px", boxSizing: "border-box" }}
+            />
+          )}
           <input
             type="password"
             value={pwd}
             onChange={e => setPwd(e.target.value)}
             placeholder="Contraseña"
-            autoFocus
+            autoFocus={mode === "password"}
             style={{ width: "100%", padding: "11px 14px", background: BG, border: `1px solid ${BDM}`, borderRadius: "2px", color: T, fontSize: "15px", fontFamily: MONO, outline: "none", marginBottom: "12px", boxSizing: "border-box" }}
           />
           {error && <div style={{ fontSize: "12px", color: "#ff5050", fontFamily: MONO, marginBottom: "10px" }}>{error}</div>}
@@ -155,6 +177,10 @@ function LoginScreen({ onLogin }) {
             style={{ width: "100%", padding: "11px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "12px", fontFamily: MONO, letterSpacing: "0.14em", textTransform: "uppercase", cursor: "pointer", opacity: loading ? 0.6 : 1 }}
           >
             {loading ? "..." : "Ingresar"}
+          </button>
+          <button type="button" onClick={() => { setMode(m => m === "member" ? "password" : "member"); setError(""); }}
+            style={{ marginTop: "10px", width: "100%", background: "none", border: "none", color: TVM, fontSize: "10px", fontFamily: MONO, letterSpacing: "0.1em", cursor: "pointer", textTransform: "uppercase" }}>
+            {mode === "member" ? "Usar contraseña de administrador" : "Ingresar con usuario Jobs DE"}
           </button>
         </form>
       </div>
@@ -197,6 +223,7 @@ export default function Tarifario() {
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [vistaPublica, setVistaPublica]           = useState(false);
   const [autenticado, setAutenticado]             = useState(false);
+  const [currentMember, setCurrentMember]         = useState(null);
 
   const previewRef = useRef(null);
   const presupuestoIdRef = useRef(null);
@@ -249,7 +276,11 @@ export default function Tarifario() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("p")) return;
-    fetch("/api/auth").then(r => r.json()).then(d => { if (d.authenticated) setAutenticado(true); });
+    // Try member session first, then fall back to old password auth
+    fetch("/api/member-me").then(r => r.json()).then(d => {
+      if (d.member) { setCurrentMember(d.member); setAutenticado(true); }
+      else fetch("/api/auth").then(r => r.json()).then(ad => { if (ad.authenticated) setAutenticado(true); });
+    });
   }, []);
 
   const [isPicker, setIsPicker] = useState(false);
@@ -513,6 +544,7 @@ export default function Tarifario() {
       fecha: new Date().toLocaleDateString("es-AR"),
       nombrePresupuesto,
       jobsEpicRef: jobsEpicRef.trim() || null,
+      creadoPor: currentMember ? { id: currentMember.id, nombre: currentMember.nombre } : null,
       cliente: clienteActual || null,
       clienteTipo,
       porcEstudio,
@@ -700,7 +732,7 @@ export default function Tarifario() {
   // ══════════════════════════════════════════════════════════════════════
   const esPublica = new URLSearchParams(window.location.search).has("p");
   if (!esPublica && !autenticado) {
-    return <LoginScreen onLogin={() => setAutenticado(true)} />;
+    return <LoginScreen onLogin={(member) => { if (member) setCurrentMember(member); setAutenticado(true); }} />;
   }
 
   return (
@@ -712,12 +744,26 @@ export default function Tarifario() {
           <DELogo height={28} fill={T} />
           <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
         </div>
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }}  style={s.btn(vista === "builder")}>Armar</button>
           <button onClick={irAPreview}  style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
           <button onClick={entrarEdicion}               style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
           <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
           <button onClick={abrirHistorial} style={s.btn(vista === "historial", TM)}>Historial</button>
+          {currentMember && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "8px", paddingLeft: "12px", borderLeft: `1px solid ${BD}` }}>
+              <div style={{ width: 24, height: 24, borderRadius: "50%", background: currentMember.color || MAG,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 9, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+              </div>
+              <span style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>{currentMember.nombre}</span>
+              <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }); setCurrentMember(null); setAutenticado(false); }}
+                style={{ background: "none", border: `1px solid ${BD}`, borderRadius: "2px", color: TVM, cursor: "pointer", fontSize: "9px", padding: "2px 7px", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                Salir
+              </button>
+            </div>
+          )}
         </div>
       </header>}
 
@@ -1379,6 +1425,9 @@ export default function Tarifario() {
                       <span>{pres.fecha}</span>
                       <span style={{ color: CLIENTE_TIPOS[pres.clienteTipo]?.color }}>{pres.clienteTipo}{pres.porcEstudio > 0 ? ` +${pres.porcEstudio}%` : ""}</span>
                       <span style={{ color: MAG }}>{fmt(pres.totalNeto * 1.21)} c/IVA</span>
+                      {pres.creadoPor && (
+                        <span style={{ color: TVM, fontSize: "11px" }}>· {pres.creadoPor.nombre}</span>
+                      )}
                     </div>
                   </div>
                   {/* Status */}

@@ -1,14 +1,16 @@
 import { put, list, del, get } from "@vercel/blob";
 import { createHash } from "crypto";
+import { verify, parseCookies } from "./_jwt.js";
 
 function isAuthenticated(req) {
-  const cookies = req.headers.cookie || "";
-  const match = cookies.match(/cdcv_auth=([^;]+)/);
-  if (!match) return false;
-  const expected = createHash("sha256")
-    .update((process.env.APP_PASSWORD || "") + "cdcv-2025")
-    .digest("hex");
-  return match[1] === expected;
+  const cookies = parseCookies(req.headers.cookie);
+  // Accept member JWT session
+  if (cookies["pres-session"]) {
+    try { verify(cookies["pres-session"]); return true; } catch {}
+  }
+  // Backward compat: old shared password cookie
+  const hash = createHash("sha256").update((process.env.APP_PASSWORD || "") + "cdcv-2025").digest("hex");
+  return cookies["cdcv_auth"] === hash;
 }
 
 export default async function handler(req, res) {
