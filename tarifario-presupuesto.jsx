@@ -177,6 +177,7 @@ export default function Tarifario() {
   const [busqueda, setBusqueda]           = useState("");
   const [clienteId, setClienteId]         = useState("");
   const [nombrePresupuesto, setNombrePresupuesto] = useState("");
+  const [jobsEpicRef, setJobsEpicRef]     = useState("");
 
   const [vista, setVista]                 = useState("builder");
 
@@ -502,6 +503,7 @@ export default function Tarifario() {
       fechaISO: new Date().toISOString(),
       fecha: new Date().toLocaleDateString("es-AR"),
       nombrePresupuesto,
+      jobsEpicRef: jobsEpicRef.trim() || null,
       cliente: clienteActual || null,
       clienteTipo,
       porcEstudio,
@@ -541,6 +543,7 @@ export default function Tarifario() {
     setClienteTipo(pres.clienteTipo || "B");
     setPorcEstudio(pres.porcEstudio || 0);
     setNombrePresupuesto(pres.nombrePresupuesto || "");
+    setJobsEpicRef(pres.jobsEpicRef || "");
     const clienteMatch = clientes.find(c => c.id === pres.cliente?.id);
     setClienteId(clienteMatch?.id || "");
     const nuevos = {};
@@ -963,6 +966,16 @@ export default function Tarifario() {
                 <input type="range" min="0" max="100" value={Math.min(porcEstudio, 100)} onChange={e => setPorcEstudio(Number(e.target.value))} style={{ width: "100%", accentColor: MAG, marginBottom: "10px" }} />
 
                 <input placeholder="N° o descripción del presupuesto" value={nombrePresupuesto} onChange={e => setNombrePresupuesto(e.target.value)} style={s.input} />
+                <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
+                  <input placeholder="Épica Jobs DE (ID)" value={jobsEpicRef} onChange={e => setJobsEpicRef(e.target.value)}
+                    style={{ ...s.input, flex: 1, fontSize: "12px", color: jobsEpicRef ? "rgba(217,0,108,0.9)" : undefined }} />
+                  {jobsEpicRef.trim() && (
+                    <a href={`https://jobs-de.vercel.app`} target="_blank" rel="noopener noreferrer"
+                      style={{ padding: "8px 10px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "12px", textDecoration: "none", flexShrink: 0, display: "flex", alignItems: "center" }}>
+                      ↗
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1135,6 +1148,7 @@ export default function Tarifario() {
         const pvFecha          = dp?.fecha      || new Date().toLocaleDateString("es-AR");
         const pvTotalNeto      = dp?.totalNeto  ?? totalNeto;
         const pvCodigo         = dp?.codigo     || codigoRef.current;
+        const pvJobsRef        = dp?.jobsEpicRef ?? jobsEpicRef.trim() || null;
         const pvItems          = dp
           ? dp.items.map(i => ({ id: i.id, nombre: i.nombre, cantidad: i.cantidad, descripcion: i.descripcion, precioFinal: i.precioFinal }))
           : Object.values(seleccionados).map(({ item, cantidad, descripcion }) => {
@@ -1166,7 +1180,13 @@ export default function Tarifario() {
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginBottom: "4px" }}>{pvFecha}</div>
-                {pvCodigo && <div style={{ fontSize: "11px", color: MAG, fontFamily: MONO, letterSpacing: "0.1em", marginBottom: "12px" }}>{pvCodigo}</div>}
+                {pvCodigo && <div style={{ fontSize: "11px", color: MAG, fontFamily: MONO, letterSpacing: "0.1em", marginBottom: pvJobsRef ? "6px" : "12px" }}>{pvCodigo}</div>}
+                {pvJobsRef && !vistaPublica && (
+                  <a href="https://jobs-de.vercel.app" target="_blank" rel="noopener noreferrer"
+                    style={{ display: "inline-block", marginBottom: "12px", padding: "2px 8px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "9px", textDecoration: "none", fontFamily: "var(--mono, monospace)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                    Jobs DE ↗
+                  </a>
+                )}
                 {pvCliente?.direccion && <div style={{ fontSize: "13px", color: T, fontFamily: MONO }}>{pvCliente.direccion}</div>}
                 {pvCliente?.telefono  && <div style={{ fontSize: "13px", color: T, fontFamily: MONO, marginTop: "4px" }}>{pvCliente.telefono}</div>}
               </div>
