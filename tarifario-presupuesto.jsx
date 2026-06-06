@@ -252,13 +252,22 @@ export default function Tarifario() {
     fetch("/api/auth").then(r => r.json()).then(d => { if (d.authenticated) setAutenticado(true); });
   }, []);
 
+  const [isPicker, setIsPicker] = useState(false);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sharedId = params.get("p");
-    if (!sharedId) return;
-    fetch(`/api/presupuestos?id=${sharedId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); setVistaPublica(true); } });
+    if (sharedId) {
+      fetch(`/api/presupuestos?id=${sharedId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); setVistaPublica(true); } });
+      return;
+    }
+    if (params.get("picker") === "1") {
+      setIsPicker(true);
+      setVista("historial");
+      cargarHistorial();
+    }
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────
@@ -1148,6 +1157,7 @@ export default function Tarifario() {
         const pvFecha          = dp?.fecha      || new Date().toLocaleDateString("es-AR");
         const pvTotalNeto      = dp?.totalNeto  ?? totalNeto;
         const pvCodigo         = dp?.codigo     || codigoRef.current;
+        const pvId             = dp?.id         || presupuestoIdRef.current;
         const pvJobsRef        = dp?.jobsEpicRef ?? jobsEpicRef.trim() || null;
         const pvItems          = dp
           ? dp.items.map(i => ({ id: i.id, nombre: i.nombre, cantidad: i.cantidad, descripcion: i.descripcion, precioFinal: i.precioFinal }))
@@ -1180,13 +1190,7 @@ export default function Tarifario() {
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontSize: "11px", color: TM, fontFamily: MONO, marginBottom: "4px" }}>{pvFecha}</div>
-                {pvCodigo && <div style={{ fontSize: "11px", color: MAG, fontFamily: MONO, letterSpacing: "0.1em", marginBottom: pvJobsRef ? "6px" : "12px" }}>{pvCodigo}</div>}
-                {pvJobsRef && !vistaPublica && (
-                  <a href="https://jobs-de.vercel.app" target="_blank" rel="noopener noreferrer"
-                    style={{ display: "inline-block", marginBottom: "12px", padding: "2px 8px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "9px", textDecoration: "none", fontFamily: "var(--mono, monospace)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                    Jobs DE ↗
-                  </a>
-                )}
+                {pvCodigo && <div style={{ fontSize: "11px", color: MAG, fontFamily: MONO, letterSpacing: "0.1em", marginBottom: "12px" }}>{pvCodigo}</div>}
                 {pvCliente?.direccion && <div style={{ fontSize: "13px", color: T, fontFamily: MONO }}>{pvCliente.direccion}</div>}
                 {pvCliente?.telefono  && <div style={{ fontSize: "13px", color: T, fontFamily: MONO, marginTop: "4px" }}>{pvCliente.telefono}</div>}
               </div>
@@ -1273,7 +1277,7 @@ export default function Tarifario() {
             </div>
           )}
 
-          {!vistaPublica && <div style={{ marginTop: "16px", display: "flex", gap: "8px" }}>
+          {!vistaPublica && <div style={{ marginTop: "16px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
             <button
               onClick={() => { presupuestoVista ? setVista("historial") : setVista("builder"); setPresupuestoVista(null); }}
               style={{ padding: "9px 20px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
@@ -1291,6 +1295,20 @@ export default function Tarifario() {
             <button onClick={guardarPDF} style={{ padding: "9px 24px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase", fontWeight: "600" }}>
               ↓ Generar PDF
             </button>
+            {pvId && (
+              pvJobsRef ? (
+                <a href="https://jobs-de.vercel.app" target="_blank" rel="noopener noreferrer"
+                  style={{ padding: "9px 16px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.3)", borderRadius: "2px", color: "#d9006c", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  Jobs DE ↗
+                </a>
+              ) : (
+                <a href={`https://jobs-de.vercel.app/?new_epic=1&pres_id=${pvId}&cliente=${encodeURIComponent(pvCliente?.nombre || "")}&monto=${pvTotalNeto || ""}`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ padding: "9px 16px", background: "rgba(217,0,108,0.06)", border: "1px solid rgba(217,0,108,0.2)", borderRadius: "2px", color: "rgba(217,0,108,0.7)", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  → Crear épica
+                </a>
+              )
+            )}
           </div>}
         </div>
         );
@@ -1300,10 +1318,15 @@ export default function Tarifario() {
       {vista === "historial" && (
         <div style={{ flex: 1, overflowY: "auto", padding: "32px 28px" }}>
           <div style={{ maxWidth: "1040px", margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isPicker ? "8px" : "20px" }}>
               <div style={{ fontFamily: DISPLAY, fontSize: "22px", fontWeight: "700", color: T, letterSpacing: "-0.02em" }}>Historial</div>
               <button onClick={cargarHistorial} style={s.btn(false, TM)}>↺ Actualizar</button>
             </div>
+            {isPicker && (
+              <div style={{ marginBottom: "20px", padding: "10px 14px", background: "rgba(217,0,108,0.06)", border: "1px solid rgba(217,0,108,0.2)", borderRadius: "2px", fontFamily: MONO, fontSize: "11px", color: "rgba(217,0,108,0.8)", letterSpacing: "0.06em" }}>
+                Seleccioná un presupuesto para vincularlo a la épica en Jobs DE
+              </div>
+            )}
 
             {/* Buscador */}
             <div style={{ position: "relative", marginBottom: "20px" }}>
@@ -1363,14 +1386,35 @@ export default function Tarifario() {
                     {pres.status === "exportado" ? "Exportado" : "Brief"}
                   </span>
                   {/* Actions */}
-                  {pres.status !== "exportado" && (
-                    <button onClick={() => editarDesdeHistorial(pres)} style={{ padding: "6px 12px", background: `${MAG}12`, border: `1px solid ${MAG}35`, borderRadius: "2px", color: MAG, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Editar</button>
+                  {isPicker ? (
+                    <button
+                      onClick={() => {
+                        window.opener?.postMessage(
+                          { type: "presupuesto-selected", id: pres.id, codigo: pres.codigo, cliente: pres.cliente?.nombre || "", monto: pres.totalNeto },
+                          "*"
+                        );
+                        window.close();
+                      }}
+                      style={{ padding: "6px 16px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0, fontWeight: "600" }}>
+                      Seleccionar ✓
+                    </button>
+                  ) : (
+                    <>
+                      {pres.status !== "exportado" && (
+                        <button onClick={() => editarDesdeHistorial(pres)} style={{ padding: "6px 12px", background: `${MAG}12`, border: `1px solid ${MAG}35`, borderRadius: "2px", color: MAG, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Editar</button>
+                      )}
+                      <button onClick={() => copiarLink(pres.id)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Link</button>
+                      <button onClick={() => abrirDesdeHistorial(pres)} style={{ padding: "6px 14px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        Ver / PDF
+                      </button>
+                      <a href={`https://jobs-de.vercel.app/?new_epic=1&pres_id=${pres.id}&cliente=${encodeURIComponent(pres.cliente?.nombre || "")}&monto=${pres.totalNeto || ""}`}
+                        target="_blank" rel="noopener noreferrer"
+                        style={{ padding: "6px 12px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        → Épica
+                      </a>
+                      <button onClick={() => eliminarDelHistorial(pres.blobUrl)} style={{ ...s.iconBtn("rgba(255,80,80,0.5)"), flexShrink: 0 }}>✕</button>
+                    </>
                   )}
-                  <button onClick={() => copiarLink(pres.id)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Link</button>
-                  <button onClick={() => abrirDesdeHistorial(pres)} style={{ padding: "6px 14px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
-                    Ver / PDF
-                  </button>
-                  <button onClick={() => eliminarDelHistorial(pres.blobUrl)} style={{ ...s.iconBtn("rgba(255,80,80,0.5)"), flexShrink: 0 }}>✕</button>
                 </div>
               ));
             })()}
