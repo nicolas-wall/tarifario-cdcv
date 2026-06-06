@@ -221,7 +221,9 @@ export default function Tarifario() {
   const [presupuestoVista, setPresupuestoVista]   = useState(null);
   const [linkCopiado, setLinkCopiado]             = useState(false);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
-  const [soloSinVincular, setSoloSinVincular]     = useState(false);
+  const [soloSinVincular, setSoloSinVincular]     = useState(() =>
+    new URLSearchParams(window.location.search).get("picker") === "1"
+  );
   const [vistaPublica, setVistaPublica]           = useState(false);
   const [autenticado, setAutenticado]             = useState(() => {
     try {
@@ -243,6 +245,10 @@ export default function Tarifario() {
   const [isPicker] = useState(() =>
     new URLSearchParams(window.location.search).get("picker") === "1"
   );
+  const [excludeIds] = useState(() => {
+    const raw = new URLSearchParams(window.location.search).get("exclude") || "";
+    return new Set(raw.split(',').filter(Boolean));
+  });
 
   const previewRef = useRef(null);
   const presupuestoIdRef = useRef(null);
@@ -1437,7 +1443,7 @@ export default function Tarifario() {
                 </span>
                 <button onClick={() => setSoloSinVincular(v => !v)}
                   style={{ padding: "4px 12px", background: soloSinVincular ? "rgba(217,0,108,0.15)" : "transparent", border: "1px solid rgba(217,0,108,0.3)", borderRadius: "2px", color: soloSinVincular ? "#d9006c" : "rgba(217,0,108,0.5)", cursor: "pointer", fontFamily: MONO, fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-                  {soloSinVincular ? "✓ Sin vincular" : "Sin vincular"}
+                  {soloSinVincular ? "✓ Solo disponibles" : "Mostrar todos"}
                 </button>
               </div>
             )}
@@ -1470,6 +1476,7 @@ export default function Tarifario() {
                 ? historial.filter(p => p.codigo?.toLowerCase().includes(busquedaHistorial.toLowerCase()) || p.cliente?.nombre?.toLowerCase().includes(busquedaHistorial.toLowerCase()))
                 : historial;
               if (soloSinVincular) filtrado = filtrado.filter(p => !p.jobsEpicRef);
+              if (excludeIds.size > 0) filtrado = filtrado.filter(p => !excludeIds.has(p.id) && !excludeIds.has(p.codigo));
               if (busquedaHistorial && filtrado.length === 0) return (
                 <div style={{ padding: "32px 16px", textAlign: "center", color: TVM, fontSize: "13px", border: `1px dashed ${BD}`, borderRadius: "2px", fontFamily: MONO }}>
                   Sin resultados para "{busquedaHistorial}"
