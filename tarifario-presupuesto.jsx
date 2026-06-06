@@ -223,8 +223,15 @@ export default function Tarifario() {
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
   const [soloSinVincular, setSoloSinVincular]     = useState(false);
   const [vistaPublica, setVistaPublica]           = useState(false);
-  const [autenticado, setAutenticado]             = useState(false);
-  const [currentMember, setCurrentMember]         = useState(null);
+  const [autenticado, setAutenticado]             = useState(() => {
+    try {
+      if (localStorage.getItem("pres-autenticado") === "1") return true;
+      return !!JSON.parse(localStorage.getItem("pres-member") || "null");
+    } catch { return false; }
+  });
+  const [currentMember, setCurrentMember]         = useState(() => {
+    try { return JSON.parse(localStorage.getItem("pres-member") || "null"); } catch { return null; }
+  });
 
   const previewRef = useRef(null);
   const presupuestoIdRef = useRef(null);
@@ -277,21 +284,47 @@ export default function Tarifario() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("p")) return;
+
+    // Cross-app SSO: Jobs DE passes its JWT in the URL hash (#t=...)
+    const hashToken = new URLSearchParams(window.location.hash.slice(1)).get("t");
+    if (hashToken) {
+      window.history.replaceState({}, "", window.location.pathname + window.location.search);
+      fetch("/api/member-set-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: hashToken }),
+      }).then(r => r.json()).then(d => {
+        if (d.member) { setCurrentMember(d.member); setAutenticado(true); }
+      });
+      return;
+    }
+
     fetch("/api/member-me").then(r => r.json()).then(d => {
       if (d.member) { setCurrentMember(d.member); setAutenticado(true); }
-      else fetch("/api/auth").then(r => r.json()).then(ad => { if (ad.authenticated) setAutenticado(true); });
+      else fetch("/api/auth").then(r => r.json()).then(ad => {
+        if (ad.authenticated) { localStorage.setItem("pres-autenticado", "1"); setAutenticado(true); }
+        else { setCurrentMember(null); setAutenticado(false); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); }
+      });
     });
   }, []);
 
-  // After auth, open a pending ?view={id} link in internal preview
+  // Persist member to localStorage so refresh shows name instantly
   useEffect(() => {
-    if (!autenticado || !pendingViewRef.current) return;
-    const viewId = pendingViewRef.current;
-    pendingViewRef.current = null;
-    cargarHistorial();
-    fetch(`/api/presupuestos?id=${viewId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); } });
+    if (currentMember) localStorage.setItem("pres-member", JSON.stringify(currentMember));
+    else localStorage.removeItem("pres-member");
+  }, [currentMember]);
+
+  // After auth: open pending ?view={id}, or reload historial for picker
+  useEffect(() => {
+    if (!autenticado) return;
+    if (pendingViewRef.current) {
+      const viewId = pendingViewRef.current;
+      pendingViewRef.current = null;
+      fetch(`/api/presupuestos?id=${viewId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); } });
+    }
+    if (isPicker) cargarHistorial();
   }, [autenticado]);
 
   const [isPicker, setIsPicker] = useState(false);
@@ -749,7 +782,7 @@ export default function Tarifario() {
   // ══════════════════════════════════════════════════════════════════════
   const esPublica = new URLSearchParams(window.location.search).has("p");
   if (!esPublica && !autenticado) {
-    return <LoginScreen onLogin={(member) => { if (member) setCurrentMember(member); setAutenticado(true); }} />;
+    return <LoginScreen onLogin={(member) => { if (member) setCurrentMember(member); else localStorage.setItem("pres-autenticado", "1"); setAutenticado(true); }} />;
   }
 
   return (
@@ -778,17 +811,20 @@ export default function Tarifario() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
                 <span style={{ fontSize: "12px", color: T, fontFamily: MONO }}>{currentMember.nombre}</span>
-                <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }); setCurrentMember(null); setAutenticado(false); }}
+                <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
                   style={{ background: "none", border: "none", color: TVM, cursor: "pointer", fontSize: "9px", padding: 0, fontFamily: MONO, letterSpacing: "0.08em", textAlign: "left", textTransform: "uppercase" }}>
-                  Cambiar cuenta
+                  Salir
                 </button>
               </div>
             </>
           ) : (
-            <button onClick={async () => { await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: "" }) }).catch(() => {}); setAutenticado(false); }}
-              style={{ ...s.btn(false, TM), padding: "5px 12px" }}>
-              Salir
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "11px", color: TM, fontFamily: MONO, letterSpacing: "0.1em" }}>Admin</span>
+              <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setAutenticado(false); }}
+                style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: 2, color: TM, fontSize: "10px", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>
+                Salir
+              </button>
+            </div>
           )}
         </div>
       </header>}
@@ -1230,7 +1266,7 @@ export default function Tarifario() {
         const pvTotalNeto      = dp?.totalNeto  ?? totalNeto;
         const pvCodigo         = dp?.codigo     || codigoRef.current;
         const pvId             = dp?.id         || presupuestoIdRef.current;
-        const pvJobsRef        = dp?.jobsEpicRef ?? jobsEpicRef.trim() || null;
+        const pvJobsRef        = dp?.jobsEpicRef ?? (jobsEpicRef.trim() || null);
         const pvItems          = dp
           ? dp.items.map(i => ({ id: i.id, nombre: i.nombre, cantidad: i.cantidad, descripcion: i.descripcion, precioFinal: i.precioFinal }))
           : Object.values(seleccionados).map(({ item, cantidad, descripcion }) => {

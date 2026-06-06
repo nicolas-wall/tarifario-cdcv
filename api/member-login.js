@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   });
 
   res.setHeader('Set-Cookie',
-    `pres-session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${30 * 24 * 3600}`
+    `pres-session=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${30 * 24 * 3600}`
   );
   res.json({ ok: true, member: { id: member.id, nombre: member.nombre, email: member.email, color: member.color, role: member.role } });
 }
