@@ -221,6 +221,7 @@ export default function Tarifario() {
   const [presupuestoVista, setPresupuestoVista]   = useState(null);
   const [linkCopiado, setLinkCopiado]             = useState(false);
   const [busquedaHistorial, setBusquedaHistorial] = useState("");
+  const [soloSinVincular, setSoloSinVincular]     = useState(false);
   const [vistaPublica, setVistaPublica]           = useState(false);
   const [autenticado, setAutenticado]             = useState(false);
   const [currentMember, setCurrentMember]         = useState(null);
@@ -276,14 +277,25 @@ export default function Tarifario() {
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has("p")) return;
-    // Try member session first, then fall back to old password auth
     fetch("/api/member-me").then(r => r.json()).then(d => {
       if (d.member) { setCurrentMember(d.member); setAutenticado(true); }
       else fetch("/api/auth").then(r => r.json()).then(ad => { if (ad.authenticated) setAutenticado(true); });
     });
   }, []);
 
+  // After auth, open a pending ?view={id} link in internal preview
+  useEffect(() => {
+    if (!autenticado || !pendingViewRef.current) return;
+    const viewId = pendingViewRef.current;
+    pendingViewRef.current = null;
+    cargarHistorial();
+    fetch(`/api/presupuestos?id=${viewId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); } });
+  }, [autenticado]);
+
   const [isPicker, setIsPicker] = useState(false);
+  const pendingViewRef = useRef(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -293,6 +305,11 @@ export default function Tarifario() {
         .then(r => r.ok ? r.json() : null)
         .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); setVistaPublica(true); } });
       return;
+    }
+    const viewId = params.get("view");
+    if (viewId) {
+      pendingViewRef.current = viewId;
+      window.history.replaceState({}, "", window.location.pathname);
     }
     if (params.get("picker") === "1") {
       setIsPicker(true);
@@ -744,25 +761,34 @@ export default function Tarifario() {
           <DELogo height={28} fill={T} />
           <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "6px" }}>
           <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }}  style={s.btn(vista === "builder")}>Armar</button>
           <button onClick={irAPreview}  style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
           <button onClick={entrarEdicion}               style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
           <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
           <button onClick={abrirHistorial} style={s.btn(vista === "historial", TM)}>Historial</button>
-          {currentMember && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "8px", paddingLeft: "12px", borderLeft: `1px solid ${BD}` }}>
-              <div style={{ width: 24, height: 24, borderRadius: "50%", background: currentMember.color || MAG,
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {currentMember ? (
+            <>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentMember.color || MAG,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 9, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                fontSize: 10, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
                 {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
               </div>
-              <span style={{ fontSize: "11px", color: TM, fontFamily: MONO }}>{currentMember.nombre}</span>
-              <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }); setCurrentMember(null); setAutenticado(false); }}
-                style={{ background: "none", border: `1px solid ${BD}`, borderRadius: "2px", color: TVM, cursor: "pointer", fontSize: "9px", padding: "2px 7px", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                Salir
-              </button>
-            </div>
+              <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+                <span style={{ fontSize: "12px", color: T, fontFamily: MONO }}>{currentMember.nombre}</span>
+                <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }); setCurrentMember(null); setAutenticado(false); }}
+                  style={{ background: "none", border: "none", color: TVM, cursor: "pointer", fontSize: "9px", padding: 0, fontFamily: MONO, letterSpacing: "0.08em", textAlign: "left", textTransform: "uppercase" }}>
+                  Cambiar cuenta
+                </button>
+              </div>
+            </>
+          ) : (
+            <button onClick={async () => { await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: "" }) }).catch(() => {}); setAutenticado(false); }}
+              style={{ ...s.btn(false, TM), padding: "5px 12px" }}>
+              Salir
+            </button>
           )}
         </div>
       </header>}
@@ -1369,8 +1395,14 @@ export default function Tarifario() {
               <button onClick={cargarHistorial} style={s.btn(false, TM)}>↺ Actualizar</button>
             </div>
             {isPicker && (
-              <div style={{ marginBottom: "20px", padding: "10px 14px", background: "rgba(217,0,108,0.06)", border: "1px solid rgba(217,0,108,0.2)", borderRadius: "2px", fontFamily: MONO, fontSize: "11px", color: "rgba(217,0,108,0.8)", letterSpacing: "0.06em" }}>
-                Seleccioná un presupuesto para vincularlo a la épica en Jobs DE
+              <div style={{ marginBottom: "20px", display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "rgba(217,0,108,0.06)", border: "1px solid rgba(217,0,108,0.2)", borderRadius: "2px" }}>
+                <span style={{ flex: 1, fontFamily: MONO, fontSize: "11px", color: "rgba(217,0,108,0.8)", letterSpacing: "0.06em" }}>
+                  Seleccioná un presupuesto para vincularlo a la épica en Jobs DE
+                </span>
+                <button onClick={() => setSoloSinVincular(v => !v)}
+                  style={{ padding: "4px 12px", background: soloSinVincular ? "rgba(217,0,108,0.15)" : "transparent", border: "1px solid rgba(217,0,108,0.3)", borderRadius: "2px", color: soloSinVincular ? "#d9006c" : "rgba(217,0,108,0.5)", cursor: "pointer", fontFamily: MONO, fontSize: "10px", letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                  {soloSinVincular ? "✓ Sin vincular" : "Sin vincular"}
+                </button>
               </div>
             )}
 
@@ -1398,9 +1430,10 @@ export default function Tarifario() {
             )}
 
             {(() => {
-              const filtrado = busquedaHistorial
-                ? historial.filter(p => p.codigo?.toLowerCase().includes(busquedaHistorial.toLowerCase()))
+              let filtrado = busquedaHistorial
+                ? historial.filter(p => p.codigo?.toLowerCase().includes(busquedaHistorial.toLowerCase()) || p.cliente?.nombre?.toLowerCase().includes(busquedaHistorial.toLowerCase()))
                 : historial;
+              if (soloSinVincular) filtrado = filtrado.filter(p => !p.jobsEpicRef);
               if (busquedaHistorial && filtrado.length === 0) return (
                 <div style={{ padding: "32px 16px", textAlign: "center", color: TVM, fontSize: "13px", border: `1px dashed ${BD}`, borderRadius: "2px", fontFamily: MONO }}>
                   Sin resultados para "{busquedaHistorial}"
