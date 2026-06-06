@@ -22,18 +22,35 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     const { id } = req.query;
-    // GET by ID is public (used by share links)
+    // GET by ID or codigo — public (used by share links and cross-app navigation)
     if (id) {
-      const { blobs } = await list({ prefix: `presupuestos/${id}.json` });
-      if (!blobs.length) return res.status(404).json({ error: "Not found" });
-      try {
-        const result = await get(blobs[0].url, { access: "private" });
-        if (!result) return res.status(404).json({ error: "Not found" });
-        const text = await new Response(result.stream).text();
-        return res.status(200).json(JSON.parse(text));
-      } catch (e) {
-        return res.status(500).json({ error: e.message });
+      // Try direct ID lookup first
+      const { blobs: exactBlobs } = await list({ prefix: `presupuestos/${id}.json` });
+      if (exactBlobs.length) {
+        try {
+          const result = await get(exactBlobs[0].url, { access: "private" });
+          if (result) {
+            const text = await new Response(result.stream).text();
+            return res.status(200).json(JSON.parse(text));
+          }
+        } catch (e) {
+          return res.status(500).json({ error: e.message });
+        }
       }
+      // Fall back: search all blobs for matching id or codigo field
+      const { blobs: allBlobs } = await list({ prefix: "presupuestos/" });
+      for (const b of allBlobs) {
+        try {
+          const result = await get(b.url, { access: "private" });
+          if (!result) continue;
+          const text = await new Response(result.stream).text();
+          const d = JSON.parse(text);
+          if (d.id === id || d.codigo === id) {
+            return res.status(200).json(d);
+          }
+        } catch {}
+      }
+      return res.status(404).json({ error: "Not found" });
     }
     // List all — requires auth
     if (!isAuthenticated(req)) return res.status(401).json({ error: "Unauthorized" });

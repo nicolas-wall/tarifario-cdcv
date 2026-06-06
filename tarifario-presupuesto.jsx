@@ -236,7 +236,8 @@ export default function Tarifario() {
   const [pendingViewId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const viewId = params.get("view");
-    if (viewId) window.history.replaceState({}, "", window.location.pathname);
+    // Preserve hash (#t=token for SSO) when clearing the search param
+    if (viewId) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
     return viewId || null;
   });
   const [isPicker] = useState(() =>
@@ -330,7 +331,10 @@ export default function Tarifario() {
     if (pendingViewId) {
       fetch(`/api/presupuestos?id=${pendingViewId}`)
         .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); } });
+        .then(data => {
+          if (data) { setPresupuestoVista(data); setVista("preview"); }
+          else { abrirHistorial(); } // fallback: show historial if presupuesto not found
+        });
     }
     if (isPicker) cargarHistorial();
   }, [autenticado]);
