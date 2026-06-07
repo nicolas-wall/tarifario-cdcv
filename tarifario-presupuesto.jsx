@@ -249,17 +249,15 @@ export default function Tarifario() {
   });
   const [showUserPopover, setShowUserPopover] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Read URL params synchronously so they're available before effects run
-  const [pendingViewId] = useState(() => {
+  // Read URL params synchronously — both before replaceState clears the URL
+  const [[pendingViewId, pendingEpicId]] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const viewId = params.get("view");
-    // Preserve hash (#t=token for SSO) when clearing the search param
+    const epicId = params.get("epic_id");
+    // Preserve hash (#t=token for SSO) when clearing the search params
     if (viewId) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
-    return viewId || null;
+    return [[viewId || null, epicId || null]];
   });
-  const [pendingEpicId] = useState(() =>
-    new URLSearchParams(window.location.search).get("epic_id") || null
-  );
   const [isPicker] = useState(() =>
     new URLSearchParams(window.location.search).get("picker") === "1"
   );
