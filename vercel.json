@@ -1,0 +1,9 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "destination": "https://jobs-de.vercel.app/:path*",
+      "permanent": true
+    }
+  ]
+}
