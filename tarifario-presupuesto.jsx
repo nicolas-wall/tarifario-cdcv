@@ -249,14 +249,16 @@ export default function Tarifario() {
   });
   const [showUserPopover, setShowUserPopover] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Read URL params synchronously — both before replaceState clears the URL
-  const [[pendingViewId, pendingEpicId]] = useState(() => {
+  // Read URL params synchronously — epic_id must be read BEFORE replaceState clears the URL
+  const [pendingEpicId] = useState(() =>
+    new URLSearchParams(window.location.search).get("epic_id") || null
+  );
+  const [pendingViewId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const viewId = params.get("view");
-    const epicId = params.get("epic_id");
     // Preserve hash (#t=token for SSO) when clearing the search params
     if (viewId) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
-    return [[viewId || null, epicId || null]];
+    return viewId || null;
   });
   const [isPicker] = useState(() =>
     new URLSearchParams(window.location.search).get("picker") === "1"
@@ -365,8 +367,12 @@ export default function Tarifario() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data) {
-            const pres = (pendingEpicId && !data.jobsEpicRef) ? { ...data, jobsEpicRef: pendingEpicId } : data;
+            const needsUpdate = pendingEpicId && !data.jobsEpicRef;
+            const pres = needsUpdate ? { ...data, jobsEpicRef: pendingEpicId } : data;
             setPresupuestoVista(pres); setVista("preview");
+            if (needsUpdate) {
+              fetch("/api/presupuestos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pres) }).catch(() => {});
+            }
           }
           else { abrirHistorial(); } // fallback: show historial if presupuesto not found
         });
