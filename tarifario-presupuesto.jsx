@@ -1254,7 +1254,7 @@ export default function Tarifario() {
                   <input placeholder="Épica Jobs DE (ID)" value={jobsEpicRef} onChange={e => setJobsEpicRef(e.target.value)}
                     style={{ ...s.input, flex: 1, fontSize: "12px", color: jobsEpicRef ? "rgba(217,0,108,0.9)" : undefined }} />
                   {jobsEpicRef.trim() && (
-                    <a href={`https://jobs-de.vercel.app`} target="_blank" rel="noopener noreferrer"
+                    <a href={`https://jobs-de.vercel.app?epic_id=${jobsEpicRef.trim()}`} target="_blank" rel="noopener noreferrer"
                       style={{ padding: "8px 10px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "12px", textDecoration: "none", flexShrink: 0, display: "flex", alignItems: "center" }}>
                       ↗
                     </a>
@@ -1560,7 +1560,7 @@ export default function Tarifario() {
 
           {!vistaPublica && <div style={{ marginTop: "16px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
             <button
-              onClick={() => { presupuestoVista ? setVista("historial") : setVista("builder"); setPresupuestoVista(null); }}
+              onClick={() => { presupuestoVista ? abrirHistorial() : setVista("builder"); setPresupuestoVista(null); }}
               style={{ padding: "9px 20px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
             >
               ← {presupuestoVista ? "Historial" : "Volver"}
@@ -1578,9 +1578,9 @@ export default function Tarifario() {
             </button>
             {pvId && (
               pvJobsRef ? (
-                <a href="https://jobs-de.vercel.app" target="_blank" rel="noopener noreferrer"
+                <a href={`https://jobs-de.vercel.app?epic_id=${pvJobsRef}`} target="_blank" rel="noopener noreferrer"
                   style={{ padding: "9px 16px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.3)", borderRadius: "2px", color: "#d9006c", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                  Jobs DE ↗
+                  → Ir a épica
                 </a>
               ) : (
                 <a href={`https://jobs-de.vercel.app/?new_epic=1&pres_id=${pvId}&cliente=${encodeURIComponent(pvCliente?.nombre || "")}&monto=${pvTotalNeto || ""}`}
@@ -1690,11 +1690,19 @@ export default function Tarifario() {
                         <button onClick={() => abrirDesdeHistorial(pres)} style={{ padding: "6px 14px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
                           Ver / PDF
                         </button>
-                        <a href={`https://jobs-de.vercel.app/?new_epic=1&pres_id=${pres.id}&cliente=${encodeURIComponent(pres.cliente?.nombre || "")}&monto=${pres.totalNeto || ""}`}
-                          target="_blank" rel="noopener noreferrer"
-                          style={{ padding: "6px 12px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
-                          → Épica
-                        </a>
+                        {pres.jobsEpicRef ? (
+                          <a href={`https://jobs-de.vercel.app?epic_id=${pres.jobsEpicRef}`}
+                            target="_blank" rel="noopener noreferrer"
+                            style={{ padding: "6px 12px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            → Ir a épica
+                          </a>
+                        ) : (
+                          <a href={`https://jobs-de.vercel.app/?new_epic=1&pres_id=${pres.id}&cliente=${encodeURIComponent(pres.cliente?.nombre || "")}&monto=${pres.totalNeto || ""}`}
+                            target="_blank" rel="noopener noreferrer"
+                            style={{ padding: "6px 12px", background: "rgba(217,0,108,0.06)", border: "1px solid rgba(217,0,108,0.2)", borderRadius: "2px", color: "rgba(217,0,108,0.7)", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            → Crear épica
+                          </a>
+                        )}
                         <button onClick={() => eliminarDelHistorial(pres.blobUrl)} style={{ ...s.iconBtn("rgba(255,80,80,0.5)"), flexShrink: 0 }}>✕</button>
                       </>
                     )}
