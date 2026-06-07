@@ -257,6 +257,9 @@ export default function Tarifario() {
     if (viewId) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
     return viewId || null;
   });
+  const [pendingEpicId] = useState(() =>
+    new URLSearchParams(window.location.search).get("epic_id") || null
+  );
   const [isPicker] = useState(() =>
     new URLSearchParams(window.location.search).get("picker") === "1"
   );
@@ -363,7 +366,10 @@ export default function Tarifario() {
       fetch(`/api/presupuestos?id=${pendingViewId}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data) { setPresupuestoVista(data); setVista("preview"); }
+          if (data) {
+            const pres = (pendingEpicId && !data.jobsEpicRef) ? { ...data, jobsEpicRef: pendingEpicId } : data;
+            setPresupuestoVista(pres); setVista("preview");
+          }
           else { abrirHistorial(); } // fallback: show historial if presupuesto not found
         });
     }
@@ -1559,12 +1565,6 @@ export default function Tarifario() {
           )}
 
           {!vistaPublica && <div style={{ marginTop: "16px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-            <button
-              onClick={() => { presupuestoVista ? abrirHistorial() : setVista("builder"); setPresupuestoVista(null); }}
-              style={{ padding: "9px 20px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.12em", textTransform: "uppercase" }}
-            >
-              ← {presupuestoVista ? "Historial" : "Volver"}
-            </button>
             {(presupuestoVista?.id || presupuestoIdRef.current) && (
               <button
                 onClick={() => copiarLink(presupuestoVista?.id || presupuestoIdRef.current)}
