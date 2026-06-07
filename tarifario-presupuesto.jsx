@@ -190,6 +190,13 @@ function LoginScreen({ onLogin }) {
 
 export default function Tarifario() {
   // ── State ──────────────────────────────────────────────────────────────
+  const [isMobile, setIsMobile]           = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+
   const [tarifario, setTarifario]         = useState(() => cargarJSON(TAR_KEY) || TARIFARIO_INICIAL);
   const [clientes, setClientes]           = useState(() => cargarJSON(CLI_KEY) || []);
 
@@ -782,7 +789,7 @@ export default function Tarifario() {
   // ── Styles ─────────────────────────────────────────────────────────────
   const s = {
     page:  { minHeight: "100vh", background: BG, color: T, fontFamily: SANS, display: "flex", flexDirection: "column" },
-    header:{ borderBottom: `1px solid ${BDM}`, padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: BG, position: "sticky", top: 0, zIndex: 10 },
+    header:{ borderBottom: `1px solid ${BDM}`, padding: isMobile ? "10px 16px" : "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: BG, position: "sticky", top: 0, zIndex: 10 },
     btn: (active, color = MAG) => ({
       padding: "7px 18px", fontSize: "11px", letterSpacing: "0.12em", border: "1px solid",
       borderRadius: "2px", cursor: "pointer", fontFamily: MONO, textTransform: "uppercase",
@@ -805,44 +812,87 @@ export default function Tarifario() {
 
       {/* ── Header ────────────────────────────────────────────────── */}
       {!vistaPublica && !isPicker && <header style={s.header}>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <DELogo height={28} fill={T} />
-          <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
-        </div>
-        <div style={{ display: "flex", gap: "6px" }}>
-          <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }}  style={s.btn(vista === "builder")}>Armar</button>
-          <button onClick={irAPreview}  style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
-          <button onClick={entrarEdicion}               style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
-          <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
-          <button onClick={abrirHistorial} style={s.btn(vista === "historial", TM)}>Historial</button>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {currentMember ? (
-            <>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentMember.color || MAG,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 10, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
-                {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-                <span style={{ fontSize: "12px", color: T, fontFamily: MONO }}>{currentMember.nombre}</span>
+        {isMobile ? (
+          /* Mobile header: logo + user/logout | scrollable tab row below */
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+              <DELogo height={22} fill={T} />
+              <div style={{ width: 1, height: 14, background: BD }} />
+              <span style={{ fontSize: "10px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Presupuesto</span>
+            </div>
+            {currentMember ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: 26, height: 26, borderRadius: "50%", background: currentMember.color || MAG,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 9, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                  {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
                 <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
-                  style={{ background: "none", border: "none", color: TVM, cursor: "pointer", fontSize: "9px", padding: 0, fontFamily: MONO, letterSpacing: "0.08em", textAlign: "left", textTransform: "uppercase" }}>
+                  style={{ background: "none", border: `1px solid ${BD}`, borderRadius: 2, color: TVM, cursor: "pointer", fontSize: "9px", padding: "3px 8px", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Salir
                 </button>
               </div>
-            </>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "11px", color: TM, fontFamily: MONO, letterSpacing: "0.1em" }}>Admin</span>
+            ) : (
               <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setAutenticado(false); }}
-                style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: 2, color: TM, fontSize: "10px", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>
+                style={{ padding: "4px 10px", background: "transparent", border: `1px solid ${BD}`, borderRadius: 2, color: TM, fontSize: "9px", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>
                 Salir
               </button>
+            )}
+          </>
+        ) : (
+          /* Desktop header */
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <DELogo height={28} fill={T} />
+              <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
             </div>
-          )}
-        </div>
+            <div style={{ display: "flex", gap: "6px" }}>
+              <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }} style={s.btn(vista === "builder")}>Armar</button>
+              <button onClick={irAPreview} style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
+              <button onClick={entrarEdicion} style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
+              <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
+              <button onClick={abrirHistorial} style={s.btn(vista === "historial", TM)}>Historial</button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {currentMember ? (
+                <>
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentMember.color || MAG,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 10, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                    {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+                    <span style={{ fontSize: "12px", color: T, fontFamily: MONO }}>{currentMember.nombre}</span>
+                    <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
+                      style={{ background: "none", border: "none", color: TVM, cursor: "pointer", fontSize: "9px", padding: 0, fontFamily: MONO, letterSpacing: "0.08em", textAlign: "left", textTransform: "uppercase" }}>
+                      Salir
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "11px", color: TM, fontFamily: MONO, letterSpacing: "0.1em" }}>Admin</span>
+                  <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setAutenticado(false); }}
+                    style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: 2, color: TM, fontSize: "10px", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>
+                    Salir
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </header>}
+
+      {/* ── Mobile nav tabs (only when not picker/public) ──────────── */}
+      {isMobile && !vistaPublica && !isPicker && (
+        <div style={{ background: BG, borderBottom: `1px solid ${BD}`, padding: "0 4px", display: "flex", overflowX: "auto", flexShrink: 0, WebkitOverflowScrolling: "touch" }}>
+          <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }} style={{ ...s.btn(vista === "builder"), whiteSpace: "nowrap", flexShrink: 0 }}>Armar</button>
+          <button onClick={irAPreview} style={{ ...s.btn(vista === "preview" && !presupuestoVista, CYN), whiteSpace: "nowrap", flexShrink: 0 }}>Presupuesto</button>
+          <button onClick={entrarEdicion} style={{ ...s.btn(vista === "editar", TM), whiteSpace: "nowrap", flexShrink: 0 }}>✎ Tarifario</button>
+          <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={{ ...s.btn(vista === "clientes", CYN), whiteSpace: "nowrap", flexShrink: 0 }}>Clientes</button>
+          <button onClick={abrirHistorial} style={{ ...s.btn(vista === "historial", TM), whiteSpace: "nowrap", flexShrink: 0 }}>Historial</button>
+        </div>
+      )}
 
       {/* ── Picker header (minimal, only in picker mode) ──────────── */}
       {isPicker && (
@@ -1065,10 +1115,10 @@ export default function Tarifario() {
 
       {/* ══════════════ BUILDER ══════════════ */}
       {vista === "builder" && (
-        <div style={{ display: "flex", flex: 1, overflow: "hidden", height: "calc(100vh - 57px)" }}>
+        <div style={{ display: "flex", flex: 1, overflow: isMobile ? "visible" : "hidden", minHeight: isMobile ? "auto" : "calc(100vh - 57px)", flexDirection: isMobile ? "column" : "row" }}>
 
           {/* Panel izquierdo */}
-          <div style={{ width: "57%", overflowY: "auto", borderRight: `1px solid ${BD}`, padding: "24px 24px 60px" }}>
+          <div style={{ width: isMobile ? "100%" : "57%", overflowY: "auto", borderRight: isMobile ? "none" : `1px solid ${BD}`, borderBottom: isMobile ? `1px solid ${BD}` : "none", padding: isMobile ? "16px 16px 24px" : "24px 24px 60px" }}>
 
             {/* Nuevo presupuesto */}
             <button
@@ -1224,7 +1274,7 @@ export default function Tarifario() {
           </div>
 
           {/* Panel derecho: resumen */}
-          <div style={{ width: "43%", overflowY: "auto", padding: "24px", background: "#0d0d0d" }}>
+          <div style={{ width: isMobile ? "100%" : "43%", overflowY: "auto", padding: isMobile ? "16px 16px 80px" : "24px", background: "#0d0d0d" }}>
             <div style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", marginBottom: "18px", fontFamily: MONO }}>Resumen</div>
 
             {clienteActual && (
@@ -1474,7 +1524,7 @@ export default function Tarifario() {
 
       {/* ══════════════ HISTORIAL ══════════════ */}
       {vista === "historial" && (
-        <div style={{ flex: 1, overflowY: "auto", padding: isPicker ? "16px 20px" : "32px 28px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isPicker ? "16px 14px" : isMobile ? "20px 16px" : "32px 28px" }}>
           <div style={{ maxWidth: "1040px", margin: "0 auto" }}>
             {!isPicker && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -1518,11 +1568,11 @@ export default function Tarifario() {
                 </div>
               );
               return filtrado.map((pres) => (
-                <div key={pres.id} style={{ padding: "13px 18px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", marginBottom: "4px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <div key={pres.id} style={{ padding: isMobile ? "12px 14px" : "13px 18px", background: S1, border: `1px solid ${BD}`, borderRadius: "2px", marginBottom: "4px", display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: "12px", flexDirection: isMobile ? "column" : "row" }}>
                   {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "nowrap", overflow: "hidden" }}>
-                      <span style={{ fontSize: "15px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+                  <div style={{ flex: 1, minWidth: 0, width: isMobile ? "100%" : undefined }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap", overflow: "hidden" }}>
+                      <span style={{ fontSize: "15px", color: T, fontFamily: DISPLAY, fontWeight: "700", letterSpacing: "-0.01em" }}>
                         {pres.cliente?.nombre || "Sin cliente"}
                       </span>
                       {pres.codigo && (
@@ -1532,7 +1582,7 @@ export default function Tarifario() {
                         <span style={{ fontSize: "12px", color: TM, fontFamily: MONO, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pres.nombrePresupuesto}</span>
                       )}
                     </div>
-                    <div style={{ marginTop: "3px", fontSize: "12px", color: TM, fontFamily: MONO, display: "flex", gap: "12px", alignItems: "center" }}>
+                    <div style={{ marginTop: "3px", fontSize: "12px", color: TM, fontFamily: MONO, display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
                       <span>{pres.fecha}</span>
                       <span style={{ color: CLIENTE_TIPOS[pres.clienteTipo]?.color }}>{pres.clienteTipo}{pres.porcEstudio > 0 ? ` +${pres.porcEstudio}%` : ""}</span>
                       <span style={{ color: MAG }}>{fmt(pres.totalNeto * 1.21)} c/IVA</span>
@@ -1541,40 +1591,41 @@ export default function Tarifario() {
                       )}
                     </div>
                   </div>
-                  {/* Status */}
-                  <span style={{ padding: "3px 10px", borderRadius: "2px", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0, background: pres.status === "exportado" ? `${CYN}20` : `${TVM}20`, color: pres.status === "exportado" ? CYN : TM, border: `1px solid ${pres.status === "exportado" ? CYN + "40" : BD}` }}>
-                    {pres.status === "exportado" ? "Exportado" : "Brief"}
-                  </span>
-                  {/* Actions */}
-                  {isPicker ? (
-                    <button
-                      onClick={() => {
-                        window.opener?.postMessage(
-                          { type: "presupuesto-selected", id: pres.id, codigo: pres.codigo, cliente: pres.cliente?.nombre || "", monto: pres.totalNeto },
-                          "*"
-                        );
-                        window.close();
-                      }}
-                      style={{ padding: "6px 16px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0, fontWeight: "600" }}>
-                      Seleccionar ✓
-                    </button>
-                  ) : (
-                    <>
-                      {pres.status !== "exportado" && (
-                        <button onClick={() => editarDesdeHistorial(pres)} style={{ padding: "6px 12px", background: `${MAG}12`, border: `1px solid ${MAG}35`, borderRadius: "2px", color: MAG, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Editar</button>
-                      )}
-                      <button onClick={() => copiarLink(pres.id)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Link</button>
-                      <button onClick={() => abrirDesdeHistorial(pres)} style={{ padding: "6px 14px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
-                        Ver / PDF
+                  {/* Status + Actions */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>
+                    <span style={{ padding: "3px 10px", borderRadius: "2px", fontSize: "9px", letterSpacing: "0.12em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0, background: pres.status === "exportado" ? `${CYN}20` : `${TVM}20`, color: pres.status === "exportado" ? CYN : TM, border: `1px solid ${pres.status === "exportado" ? CYN + "40" : BD}` }}>
+                      {pres.status === "exportado" ? "Exportado" : "Brief"}
+                    </span>
+                    {isPicker ? (
+                      <button
+                        onClick={() => {
+                          window.opener?.postMessage(
+                            { type: "presupuesto-selected", id: pres.id, codigo: pres.codigo, cliente: pres.cliente?.nombre || "", monto: pres.totalNeto },
+                            "*"
+                          );
+                          window.close();
+                        }}
+                        style={{ padding: "6px 16px", background: MAG, border: "none", borderRadius: "2px", color: "#fff", fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0, fontWeight: "600" }}>
+                        Seleccionar ✓
                       </button>
-                      <a href={`https://jobs-de.vercel.app/?new_epic=1&pres_id=${pres.id}&cliente=${encodeURIComponent(pres.cliente?.nombre || "")}&monto=${pres.totalNeto || ""}`}
-                        target="_blank" rel="noopener noreferrer"
-                        style={{ padding: "6px 12px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
-                        → Épica
-                      </a>
-                      <button onClick={() => eliminarDelHistorial(pres.blobUrl)} style={{ ...s.iconBtn("rgba(255,80,80,0.5)"), flexShrink: 0 }}>✕</button>
-                    </>
-                  )}
+                    ) : (
+                      <>
+                        {pres.status !== "exportado" && (
+                          <button onClick={() => editarDesdeHistorial(pres)} style={{ padding: "6px 12px", background: `${MAG}12`, border: `1px solid ${MAG}35`, borderRadius: "2px", color: MAG, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Editar</button>
+                        )}
+                        <button onClick={() => copiarLink(pres.id)} style={{ padding: "6px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: "2px", color: TM, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>Link</button>
+                        <button onClick={() => abrirDesdeHistorial(pres)} style={{ padding: "6px 14px", background: `${CYN}12`, border: `1px solid ${CYN}30`, borderRadius: "2px", color: CYN, fontSize: "11px", cursor: "pointer", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                          Ver / PDF
+                        </button>
+                        <a href={`https://jobs-de.vercel.app/?new_epic=1&pres_id=${pres.id}&cliente=${encodeURIComponent(pres.cliente?.nombre || "")}&monto=${pres.totalNeto || ""}`}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{ padding: "6px 12px", background: "rgba(217,0,108,0.08)", border: "1px solid rgba(217,0,108,0.25)", borderRadius: "2px", color: "#d9006c", fontSize: "11px", textDecoration: "none", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase", whiteSpace: "nowrap", flexShrink: 0 }}>
+                          → Épica
+                        </a>
+                        <button onClick={() => eliminarDelHistorial(pres.blobUrl)} style={{ ...s.iconBtn("rgba(255,80,80,0.5)"), flexShrink: 0 }}>✕</button>
+                      </>
+                    )}
+                  </div>
                 </div>
               ));
             })()}
