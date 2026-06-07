@@ -248,6 +248,7 @@ export default function Tarifario() {
     try { return JSON.parse(localStorage.getItem("pres-member") || "null"); } catch { return null; }
   });
   const [showUserPopover, setShowUserPopover] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   // Read URL params synchronously so they're available before effects run
   const [pendingViewId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -802,7 +803,7 @@ export default function Tarifario() {
   const dp = presupuestoVista || null;
   // ── Styles ─────────────────────────────────────────────────────────────
   const s = {
-    page:  { minHeight: "100vh", background: BG, color: T, fontFamily: SANS, display: "flex", flexDirection: "column" },
+    page:  { height: "100vh", background: BG, color: T, fontFamily: SANS, display: "flex", flexDirection: "row", overflow: "hidden" },
     header:{ borderBottom: `1px solid ${BDM}`, padding: isMobile ? "10px 16px" : "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: BG, position: "sticky", top: 0, zIndex: 10 },
     btn: (active, color = MAG) => ({
       padding: "7px 18px", fontSize: "11px", letterSpacing: "0.12em", border: "1px solid",
@@ -824,101 +825,145 @@ export default function Tarifario() {
   return (
     <div style={s.page}>
 
-      {/* ── Header ────────────────────────────────────────────────── */}
-      {!vistaPublica && !isPicker && <header style={s.header}>
-        {isMobile ? (
-          /* Mobile header: logo + user/logout | scrollable tab row below */
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
-              <DELogo height={22} fill={T} />
-              <div style={{ width: 1, height: 22, background: BD }} />
-              <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1, color: T, fontFamily: DISPLAY }}>Presupuesto</span>
+      {/* ── Sidebar ────────────────────────────────────────────────── */}
+      {!vistaPublica && !isPicker && (
+        <>
+          {isMobile && sidebarOpen && (
+            <div onClick={() => setSidebarOpen(false)}
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 299 }} />
+          )}
+          <div style={{
+            width: 240, flexShrink: 0, background: BG, borderRight: `1px solid ${BD}`,
+            display: "flex", flexDirection: "column", height: "100vh", overflowY: "auto",
+            ...(isMobile ? {
+              position: "fixed", left: 0, top: 0, zIndex: 300,
+              transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+              transition: "transform 0.25s ease",
+              boxShadow: sidebarOpen ? "4px 0 24px rgba(0,0,0,0.6)" : "none",
+            } : {}),
+          }}>
+            {/* Logo + title */}
+            <div style={{ padding: "16px 14px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+              <DELogo height={18} fill={T} />
+              <div style={{ width: 1, height: 18, background: BD }} />
+              <span style={{ fontFamily: DISPLAY, fontSize: 18, fontWeight: 700, color: T,
+                letterSpacing: "-0.01em", lineHeight: 1, flex: 1 }}>Presupuesto</span>
+              {isMobile && (
+                <button onClick={() => setSidebarOpen(false)}
+                  style={{ background: "none", border: "none", color: TM, cursor: "pointer",
+                    fontSize: 18, padding: "2px 4px", lineHeight: 1 }}>✕</button>
+              )}
             </div>
-            {currentMember ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div onClick={() => setShowUserPopover(true)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderRadius: 3, padding: "2px 4px", transition: "background 0.15s" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,0.07)")}
+
+            {/* User card */}
+            <div style={{ padding: "6px 10px 10px", borderBottom: `1px solid ${BD}` }}>
+              {currentMember ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 6px",
+                  borderRadius: 3, cursor: "pointer", transition: "background 0.15s" }}
+                  onClick={() => { setShowUserPopover(true); if (isMobile) setSidebarOpen(false); }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,0.05)")}
                   onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                   {currentMember.avatar_url
-                    ? <img src={currentMember.avatar_url} alt="" style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                    : <div style={{ width: 26, height: 26, borderRadius: "50%", background: currentMember.color || MAG,
+                    ? <img src={currentMember.avatar_url} alt={currentMember.nombre}
+                        style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    : <div style={{ width: 32, height: 32, borderRadius: "50%", background: currentMember.color || MAG,
                         display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 9, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                        fontSize: 11, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
                         {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                       </div>
                   }
-                  <span style={{ fontSize: "11px", color: TM, fontFamily: MONO, maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentMember.nombre}</span>
-                </div>
-                <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
-                  style={{ background: "none", border: `1px solid ${BD}`, borderRadius: 2, color: TVM, cursor: "pointer", fontSize: "9px", padding: "3px 8px", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Salir
-                </button>
-              </div>
-            ) : (
-              <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setAutenticado(false); }}
-                style={{ padding: "4px 10px", background: "transparent", border: `1px solid ${BD}`, borderRadius: 2, color: TM, fontSize: "9px", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>
-                Salir
-              </button>
-            )}
-          </>
-        ) : (
-          /* Desktop header */
-          <>
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <DELogo height={28} fill={T} />
-              <div style={{ width: 1, height: 28, background: BD }} />
-              <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1, color: T, fontFamily: DISPLAY }}>Presupuesto</span>
-            </div>
-            <div style={{ display: "flex", gap: "6px" }}>
-              <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }} style={s.btn(vista === "builder")}>Armar</button>
-              <button onClick={irAPreview} style={s.btn(vista === "preview" && !presupuestoVista, CYN)}>Presupuesto</button>
-              <button onClick={entrarEdicion} style={s.btn(vista === "editar", TM)}>✎ Tarifario</button>
-              <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={s.btn(vista === "clientes", CYN)}>Clientes</button>
-              <button onClick={abrirHistorial} style={s.btn(vista === "historial", TM)}>Historial</button>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              {currentMember ? (
-                <>
-                  <div onClick={() => setShowUserPopover(true)} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", borderRadius: 3, padding: "3px 6px", transition: "background 0.15s" }}
-                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,0.07)")}
-                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                    {currentMember.avatar_url
-                      ? <img src={currentMember.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                      : <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentMember.color || MAG,
-                          display: "flex", alignItems: "center", justifyContent: "center",
-                          fontSize: 10, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
-                          {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
-                        </div>
-                    }
-                    <span style={{ fontSize: "13px", color: T, fontFamily: MONO }}>{currentMember.nombre}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: SANS, fontSize: 13, color: T, fontWeight: 600,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {currentMember.nombre}
+                    </div>
+                    {(currentMember.rol_empresa || currentMember.email) && (
+                      <div style={{ fontFamily: MONO, fontSize: 9, color: TVM, letterSpacing: "0.04em",
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {currentMember.rol_empresa || currentMember.email}
+                      </div>
+                    )}
                   </div>
-                  <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
-                    style={{ background: "none", border: `1px solid ${BD}`, borderRadius: 2, color: TVM, cursor: "pointer", fontSize: "9px", padding: "3px 8px", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                  <button onClick={e => {
+                    e.stopPropagation();
+                    fetch("/api/member-logout", { method: "POST" }).catch(() => {});
+                    localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado");
+                    setCurrentMember(null); setAutenticado(false);
+                  }} style={{ background: "none", border: `1px solid ${BD}`, borderRadius: 2, color: TVM,
+                    cursor: "pointer", fontSize: 9, padding: "3px 7px", fontFamily: MONO,
+                    letterSpacing: "0.1em", textTransform: "uppercase", flexShrink: 0 }}>
                     Salir
                   </button>
-                </>
+                </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontSize: "11px", color: TM, fontFamily: MONO, letterSpacing: "0.1em" }}>Admin</span>
-                  <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setAutenticado(false); }}
-                    style={{ padding: "5px 12px", background: "transparent", border: `1px solid ${BD}`, borderRadius: 2, color: TM, fontSize: "10px", fontFamily: MONO, letterSpacing: "0.1em", textTransform: "uppercase", cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 6px" }}>
+                  <span style={{ fontFamily: MONO, fontSize: 10, color: TVM, letterSpacing: "0.08em" }}>Admin</span>
+                  <button onClick={async () => {
+                    await fetch("/api/member-logout", { method: "POST" }).catch(() => {});
+                    localStorage.removeItem("pres-autenticado"); setAutenticado(false);
+                  }} style={{ background: "none", border: `1px solid ${BD}`, borderRadius: 2, color: TVM,
+                    cursor: "pointer", fontSize: 9, padding: "3px 7px", fontFamily: MONO,
+                    letterSpacing: "0.1em", textTransform: "uppercase" }}>
                     Salir
                   </button>
                 </div>
               )}
             </div>
-          </>
-        )}
-      </header>}
 
-      {/* ── Mobile nav tabs (only when not picker/public) ──────────── */}
+            {/* Navigation */}
+            {(() => {
+              const navItem = (view, icon, label, activeFn) => {
+                const active = activeFn ? activeFn() : vista === view;
+                return (
+                  <button key={view} onClick={() => {
+                    if (view === "builder") { setPresupuestoVista(null); setVista("builder"); }
+                    else if (view === "preview") irAPreview();
+                    else if (view === "editar") entrarEdicion();
+                    else if (view === "clientes") { setClienteForm(null); setVista("clientes"); }
+                    else if (view === "historial") abrirHistorial();
+                    if (isMobile) setSidebarOpen(false);
+                  }}
+                  style={{ width: "100%", display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 10px", borderRadius: 3, border: "none", cursor: "pointer",
+                    background: active ? `${MAG}12` : "transparent",
+                    color: active ? MAG : TM, fontFamily: MONO, fontSize: 11,
+                    letterSpacing: "0.05em", textAlign: "left", transition: "background 0.1s" }}>
+                    <span style={{ fontSize: 14, flexShrink: 0, opacity: 0.9 }}>{icon}</span>
+                    <span style={{ flex: 1 }}>{label}</span>
+                  </button>
+                );
+              };
+              return (
+                <div style={{ padding: "10px 8px 6px", flex: 1 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: TVM, letterSpacing: "0.14em",
+                    textTransform: "uppercase", padding: "4px 10px 6px" }}>Vistas</div>
+                  {navItem("builder", "◈", "Armar")}
+                  {navItem("preview", "◉", "Presupuesto", () => vista === "preview" && !presupuestoVista)}
+                  {navItem("editar", "✎", "Tarifario")}
+                  {navItem("clientes", "◈", "Clientes")}
+                  {navItem("historial", "◷", "Historial")}
+                </div>
+              );
+            })()}
+          </div>
+        </>
+      )}
+
+      {/* ── Content area ───────────────────────────────────────────── */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
+
+      {/* Mobile top bar */}
       {isMobile && !vistaPublica && !isPicker && (
-        <div style={{ background: BG, borderBottom: `1px solid ${BD}`, padding: "0 4px", display: "flex", overflowX: "auto", flexShrink: 0, WebkitOverflowScrolling: "touch" }}>
-          <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }} style={{ ...s.btn(vista === "builder"), whiteSpace: "nowrap", flexShrink: 0 }}>Armar</button>
-          <button onClick={irAPreview} style={{ ...s.btn(vista === "preview" && !presupuestoVista, CYN), whiteSpace: "nowrap", flexShrink: 0 }}>Presupuesto</button>
-          <button onClick={entrarEdicion} style={{ ...s.btn(vista === "editar", TM), whiteSpace: "nowrap", flexShrink: 0 }}>✎ Tarifario</button>
-          <button onClick={() => { setClienteForm(null); setVista("clientes"); }} style={{ ...s.btn(vista === "clientes", CYN), whiteSpace: "nowrap", flexShrink: 0 }}>Clientes</button>
-          <button onClick={abrirHistorial} style={{ ...s.btn(vista === "historial", TM), whiteSpace: "nowrap", flexShrink: 0 }}>Historial</button>
+        <div style={{ height: 52, borderBottom: `1px solid ${BD}`, display: "flex", alignItems: "center",
+          gap: 10, padding: "0 16px", background: BG, flexShrink: 0, position: "sticky", top: 0, zIndex: 10 }}>
+          <button onClick={() => setSidebarOpen(true)}
+            style={{ background: "none", border: "none", color: TM, cursor: "pointer",
+              fontSize: 20, padding: "4px 2px", lineHeight: 1, flexShrink: 0 }}>☰</button>
+          <span style={{ fontFamily: MONO, fontSize: 11, color: TM, letterSpacing: "0.08em",
+            textTransform: "uppercase", flex: 1 }}>
+            {vista === "builder" ? "Armar" : vista === "preview" ? "Presupuesto"
+              : vista === "editar" ? "Tarifario" : vista === "clientes" ? "Clientes" : "Historial"}
+          </span>
         </div>
       )}
 
@@ -1661,11 +1706,13 @@ export default function Tarifario() {
         </div>
       )}
 
+      </div>{/* end content area */}
+
       {showUserPopover && currentMember && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 200 }} onClick={() => setShowUserPopover(false)}>
-          <div style={{ position: "absolute", top: 56, right: 16, background: S1,
-            border: `1px solid ${BDM}`, borderRadius: 4, padding: "16px 20px",
-            display: "flex", flexDirection: "column", gap: 12, minWidth: 220 }}
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setShowUserPopover(false)}>
+          <div style={{ background: S1, border: `1px solid ${BDM}`, borderRadius: 4, padding: "16px 20px",
+            display: "flex", flexDirection: "column", gap: 12, minWidth: 240 }}
             onClick={e => e.stopPropagation()}>
 
             {/* User info */}
