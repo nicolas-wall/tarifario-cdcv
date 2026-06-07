@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
+import { createClient } from "@supabase/supabase-js";
 
 // ── Logo mark (fallback si no carga la imagen) ────────────────────────────
 const DELogo = ({ height, width, fill = "#E6E6E6" }) => {
@@ -110,6 +111,242 @@ const guardarJSON = (key, data) => {
   try { localStorage.setItem(key, JSON.stringify(data)); } catch {}
 };
 // ─────────────────────────────────────────────────────────────────────────
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
+
+const CROP_SIZE = 230;
+function AvatarCropModal({ src, onSave, onCancel }) {
+  const [naturalW, setNaturalW] = useState(0);
+  const [naturalH, setNaturalH] = useState(0);
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef({ sx: 0, sy: 0, px: 0, py: 0 });
+  const canvasRef = useRef(null);
+  const imgElRef = useRef(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      imgElRef.current = img;
+      setNaturalW(img.naturalWidth);
+      setNaturalH(img.naturalHeight);
+      const minS = CROP_SIZE / Math.min(img.naturalWidth, img.naturalHeight);
+      setScale(minS);
+      setPos({ x: 0, y: 0 });
+    };
+    img.src = src;
+  }, [src]);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e) => setPos({ x: dragRef.current.px + (e.clientX - dragRef.current.sx), y: dragRef.current.py + (e.clientY - dragRef.current.sy) });
+    const onUp = () => setDragging(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+  }, [dragging]);
+
+  const handleSave = () => {
+    const canvas = canvasRef.current;
+    const img = imgElRef.current;
+    const OUT = 320;
+    canvas.width = OUT; canvas.height = OUT;
+    const ctx = canvas.getContext("2d");
+    const sf = OUT / CROP_SIZE;
+    const dw = naturalW * scale * sf, dh = naturalH * scale * sf;
+    const dx = OUT / 2 + pos.x * sf - dw / 2, dy = OUT / 2 + pos.y * sf - dh / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+    canvas.toBlob(blob => { if (blob) onSave(blob); }, "image/jpeg", 0.92);
+  };
+
+  const minScale = naturalW > 0 ? CROP_SIZE / Math.min(naturalW, naturalH) : 1;
+  const baseW = naturalW * minScale, baseH = naturalH * minScale;
+  const relScale = naturalW > 0 ? scale / minScale : 1;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 400,
+      display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={e => e.target === e.currentTarget && onCancel()}>
+      <div style={{ background: S1, border: `1px solid ${BDM}`, borderRadius: 2,
+        padding: 28, display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
+        <span style={{ fontFamily: MONO, fontSize: 10, color: TVM, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+          Ajustar foto de perfil
+        </span>
+        <div onMouseDown={e => { e.preventDefault(); dragRef.current = { sx: e.clientX, sy: e.clientY, px: pos.x, py: pos.y }; setDragging(true); }}
+          style={{ width: CROP_SIZE, height: CROP_SIZE, borderRadius: "50%", overflow: "hidden",
+            cursor: dragging ? "grabbing" : "grab", position: "relative",
+            border: `2px solid ${BD}`, background: BG }}>
+          {naturalW > 0 && (
+            <img src={src} alt="" draggable={false} style={{
+              width: baseW, height: baseH, position: "absolute",
+              left: CROP_SIZE / 2 - baseW / 2 + pos.x, top: CROP_SIZE / 2 - baseH / 2 + pos.y,
+              transform: `scale(${relScale})`, transformOrigin: "center center",
+              userSelect: "none", pointerEvents: "none",
+            }} />
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, width: CROP_SIZE }}>
+          <span style={{ fontFamily: MONO, fontSize: 14, color: TVM, lineHeight: 1 }}>−</span>
+          <input type="range" min={minScale} max={minScale * 3.5} step={0.001}
+            value={scale} onChange={e => setScale(Number(e.target.value))}
+            style={{ flex: 1, accentColor: MAG, cursor: "pointer" }} />
+          <span style={{ fontFamily: MONO, fontSize: 14, color: TVM, lineHeight: 1 }}>+</span>
+        </div>
+        <canvas ref={canvasRef} style={{ display: "none" }} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={handleSave}
+            style={{ padding: "8px 24px", background: MAG, border: "none", borderRadius: 2,
+              color: "#fff", cursor: "pointer", fontFamily: MONO, fontSize: 11,
+              letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            Guardar
+          </button>
+          <button onClick={onCancel}
+            style={{ padding: "8px 16px", background: "none", border: `1px solid ${BD}`,
+              borderRadius: 2, color: TVM, cursor: "pointer", fontFamily: MONO, fontSize: 11 }}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileEditModal({ member, onSave, onClose }) {
+  const [nombre, setNombre] = useState(member.nombre || "");
+  const [email, setEmail] = useState(member.email || "");
+  const [avatarUrl, setAvatarUrl] = useState(member.avatar_url || "");
+  const [cropSrc, setCropSrc] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const fileRef = useRef(null);
+
+  const INPUT = { padding: "8px 11px", background: BG, border: `1px solid ${BD}`,
+    borderRadius: 2, color: T, fontSize: 13, fontFamily: SANS, outline: "none",
+    boxSizing: "border-box", width: "100%" };
+
+  const openReEdit = async () => {
+    setUploading(true);
+    try {
+      const origUrl = supabase.storage.from("avatars").getPublicUrl(`orig_${member.id}.jpg`).data.publicUrl;
+      const res = await fetch(origUrl + `?cb=${Date.now()}`);
+      const blob = await (res.ok ? res : await fetch(avatarUrl)).blob();
+      setCropSrc(URL.createObjectURL(blob));
+    } catch { /* silent */ }
+    setUploading(false);
+  };
+
+  const handleNewFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    supabase.storage.from("avatars").upload(`orig_${member.id}.jpg`, file, { upsert: true, contentType: file.type }).catch(() => {});
+    setCropSrc(URL.createObjectURL(file));
+    e.target.value = "";
+  };
+
+  const handleCropSave = async (blob) => {
+    setCropSrc(null);
+    setUploading(true);
+    const path = `${member.id}.jpg`;
+    const { error } = await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
+    if (!error) {
+      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+      setAvatarUrl(publicUrl + `?t=${Date.now()}`);
+    }
+    setUploading(false);
+  };
+
+  const initials = (n) => (n || "").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  return (
+    <>
+      {cropSrc && <AvatarCropModal src={cropSrc} onSave={handleCropSave} onCancel={() => setCropSrc(null)} />}
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 200,
+        display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        onClick={e => e.target === e.currentTarget && onClose()}>
+        <div style={{ background: S1, border: `1px solid ${BDM}`, borderRadius: 2,
+          width: "100%", maxWidth: 400, display: "flex", flexDirection: "column" }}>
+
+          <div style={{ padding: "18px 24px 14px", borderBottom: `1px solid ${BD}`,
+            display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontFamily: DISPLAY, fontSize: 18, fontWeight: 700, color: T, letterSpacing: "-0.02em" }}>
+              Mi perfil
+            </span>
+            <button onClick={onClose}
+              style={{ background: "none", border: "none", color: TM, cursor: "pointer", fontSize: 18, padding: 4 }}>✕</button>
+          </div>
+
+          <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+            {/* Avatar */}
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <div style={{ position: "relative", width: 80, height: 80 }}>
+                {avatarUrl
+                  ? <img src={avatarUrl} alt={nombre} style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover" }} />
+                  : <div style={{ width: 80, height: 80, borderRadius: "50%", background: member.color || MAG,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 28, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700 }}>
+                      {initials(nombre || member.nombre)}
+                    </div>
+                }
+                <div
+                  style={{ position: "absolute", inset: 0, borderRadius: "50%",
+                    background: "rgba(0,0,0,0.62)", cursor: "pointer",
+                    display: "flex", flexDirection: "column", alignItems: "center",
+                    justifyContent: "center", gap: 3,
+                    opacity: uploading ? 1 : 0, transition: "opacity 0.15s" }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = "1")}
+                  onMouseLeave={e => !uploading && (e.currentTarget.style.opacity = "0")}
+                  onClick={avatarUrl ? openReEdit : () => fileRef.current?.click()}>
+                  {uploading
+                    ? <span style={{ fontFamily: MONO, fontSize: 11, color: "#fff" }}>…</span>
+                    : avatarUrl ? (
+                      <>
+                        <span style={{ fontFamily: MONO, fontSize: 10, color: "#fff", letterSpacing: "0.04em" }}>✎ editar</span>
+                        <span style={{ fontFamily: MONO, fontSize: 9, color: "rgba(255,255,255,0.55)", letterSpacing: "0.04em" }}
+                          onClick={e => { e.stopPropagation(); fileRef.current?.click(); }}>
+                          📷 nueva
+                        </span>
+                      </>
+                    ) : <span style={{ fontSize: 24 }}>📷</span>
+                  }
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleNewFile} />
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontFamily: MONO, fontSize: 9, color: TVM, letterSpacing: "0.12em", textTransform: "uppercase" }}>Nombre</label>
+                <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre" style={INPUT} />
+              </div>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={{ fontFamily: MONO, fontSize: 9, color: TVM, letterSpacing: "0.12em", textTransform: "uppercase" }}>Email</label>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={INPUT} />
+              </div>
+            </div>
+
+            <button
+              disabled={saving}
+              onClick={async () => {
+                setSaving(true);
+                await onSave({ id: member.id, nombre: nombre.trim() || member.nombre, email: email.trim() || undefined, avatar_url: avatarUrl || undefined });
+                setSaving(false);
+              }}
+              style={{ padding: "10px", background: MAG, border: "none", borderRadius: 2,
+                color: "#fff", cursor: "pointer", fontFamily: MONO, fontSize: 11,
+                letterSpacing: "0.12em", textTransform: "uppercase", opacity: saving ? 0.6 : 1 }}>
+              {saving ? "..." : "Guardar cambios"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
 function LoginScreen({ onLogin }) {
   const [mode, setMode]   = useState("member"); // "member" | "password"
@@ -241,6 +478,7 @@ export default function Tarifario() {
   const [currentMember, setCurrentMember]         = useState(() => {
     try { return JSON.parse(localStorage.getItem("pres-member") || "null"); } catch { return null; }
   });
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
   // Read URL params synchronously so they're available before effects run
   const [pendingViewId] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -822,14 +1060,19 @@ export default function Tarifario() {
             </div>
             {currentMember ? (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                {currentMember.avatar_url
-                  ? <img src={currentMember.avatar_url} alt="" style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                  : <div style={{ width: 26, height: 26, borderRadius: "50%", background: currentMember.color || MAG,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 9, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
-                      {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
-                    </div>
-                }
+                <div onClick={() => setShowProfileEdit(true)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", borderRadius: 3, padding: "2px 4px", transition: "background 0.15s" }}
+                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,0.07)")}
+                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                  {currentMember.avatar_url
+                    ? <img src={currentMember.avatar_url} alt="" style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    : <div style={{ width: 26, height: 26, borderRadius: "50%", background: currentMember.color || MAG,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 9, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                        {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                  }
+                  <span style={{ fontSize: "11px", color: TM, fontFamily: MONO, maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{currentMember.nombre}</span>
+                </div>
                 <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
                   style={{ background: "none", border: `1px solid ${BD}`, borderRadius: 2, color: TVM, cursor: "pointer", fontSize: "9px", padding: "3px 8px", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Salir
@@ -860,21 +1103,23 @@ export default function Tarifario() {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               {currentMember ? (
                 <>
-                  {currentMember.avatar_url
-                    ? <img src={currentMember.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-                    : <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentMember.color || MAG,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 10, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
-                        {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
-                      </div>
-                  }
-                  <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-                    <span style={{ fontSize: "12px", color: T, fontFamily: MONO }}>{currentMember.nombre}</span>
-                    <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
-                      style={{ background: "none", border: "none", color: TVM, cursor: "pointer", fontSize: "9px", padding: 0, fontFamily: MONO, letterSpacing: "0.08em", textAlign: "left", textTransform: "uppercase" }}>
-                      Salir
-                    </button>
+                  <div onClick={() => setShowProfileEdit(true)} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", borderRadius: 3, padding: "3px 6px", transition: "background 0.15s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "rgba(230,230,230,0.07)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                    {currentMember.avatar_url
+                      ? <img src={currentMember.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                      : <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentMember.color || MAG,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          fontSize: 10, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                          {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                    }
+                    <span style={{ fontSize: "13px", color: T, fontFamily: MONO }}>{currentMember.nombre}</span>
                   </div>
+                  <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
+                    style={{ background: "none", border: `1px solid ${BD}`, borderRadius: 2, color: TVM, cursor: "pointer", fontSize: "9px", padding: "3px 8px", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Salir
+                  </button>
                 </>
               ) : (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1638,6 +1883,19 @@ export default function Tarifario() {
             })()}
           </div>
         </div>
+      )}
+
+      {showProfileEdit && currentMember && (
+        <ProfileEditModal
+          member={currentMember}
+          onSave={async (data) => {
+            const { id, ...fields } = data;
+            await supabase.from("members").update(fields).eq("id", id);
+            setCurrentMember(prev => prev ? { ...prev, ...fields } : prev);
+            setShowProfileEdit(false);
+          }}
+          onClose={() => setShowProfileEdit(false)}
+        />
       )}
     </div>
   );
