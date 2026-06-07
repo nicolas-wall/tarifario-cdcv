@@ -245,6 +245,9 @@ export default function Tarifario() {
   const [isPicker] = useState(() =>
     new URLSearchParams(window.location.search).get("picker") === "1"
   );
+  const [isPickerNew] = useState(() =>
+    new URLSearchParams(window.location.search).get("new") === "1"
+  );
   const [excludeIds] = useState(() => {
     const raw = new URLSearchParams(window.location.search).get("exclude") || "";
     return new Set(raw.split(',').filter(Boolean));
@@ -342,7 +345,7 @@ export default function Tarifario() {
           else { abrirHistorial(); } // fallback: show historial if presupuesto not found
         });
     }
-    if (isPicker) cargarHistorial();
+    if (isPicker && !isPickerNew) cargarHistorial();
   }, [autenticado]);
 
   useEffect(() => {
@@ -354,7 +357,7 @@ export default function Tarifario() {
         .then(data => { if (data) { setPresupuestoVista(data); setVista("preview"); setVistaPublica(true); } });
       return;
     }
-    if (isPicker) setVista("historial");
+    if (isPicker && !isPickerNew) setVista("historial");
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────
