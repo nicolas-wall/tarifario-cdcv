@@ -18,15 +18,15 @@ const DELogo = ({ height, width, fill = "#E6E6E6" }) => {
 };
 
 // ── Design tokens ─────────────────────────────────────────────────────────
-const BG  = '#0a0a0a';
-const S1  = '#111111';
-const S2  = '#161616';
-const BD  = 'rgba(230,230,230,0.08)';
-const BDM = 'rgba(230,230,230,0.14)';
+const BG  = '#16161c';
+const S1  = '#1e1e26';
+const S2  = '#252530';
+const BD  = 'rgba(255,255,255,0.12)';
+const BDM = 'rgba(255,255,255,0.22)';
 const T   = '#E6E6E6';
-const TM  = 'rgba(230,230,230,0.38)';
-const TVM = 'rgba(230,230,230,0.15)';
-const MAG = '#d9006c';
+const TM  = 'rgba(230,230,230,0.55)';
+const TVM = 'rgba(230,230,230,0.28)';
+const MAG = '#e8007a';
 const CYN = '#00F0FF';
 const DISPLAY = "'Clash Display','Arial Black',sans-serif";
 const SANS    = "'Satoshi','Inter','Helvetica Neue',sans-serif";
