@@ -215,9 +215,52 @@ function AvatarCropModal({ src, onSave, onCancel }) {
   );
 }
 
+function PwdRow({ memberId }) {
+  const [open, setOpen] = useState(false);
+  const [pwd, setPwd] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+  const INPUT = { padding: "8px 11px", background: BG, border: `1px solid ${BD}`,
+    borderRadius: 2, color: T, fontSize: 13, fontFamily: SANS, outline: "none",
+    boxSizing: "border-box", width: "100%" };
+  const save = async () => {
+    if (pwd.length < 6) return;
+    setSaving(true);
+    await supabase.rpc("set_member_password", { p_member_id: memberId, p_password: pwd });
+    setSaving(false);
+    setPwd(""); setOpen(false); setDone(true);
+  };
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <button onClick={() => { setOpen(o => !o); setDone(false); }}
+        style={{ ...INPUT, cursor: "pointer", fontSize: 11, fontFamily: MONO,
+          letterSpacing: "0.08em", color: done ? "#00C851" : TVM,
+          borderColor: done ? "#00C85130" : BD, textAlign: "left" }}>
+        {done ? "✓ Contraseña guardada" : open ? "Cancelar" : "Cambiar contraseña"}
+      </button>
+      {open && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input type="password" value={pwd} onChange={e => setPwd(e.target.value)}
+            placeholder="Mín. 6 caracteres" autoFocus
+            onKeyDown={e => e.key === "Enter" && save()}
+            style={{ ...INPUT, flex: 1 }} />
+          <button onClick={save} disabled={saving || pwd.length < 6}
+            style={{ padding: "8px 14px", background: `${MAG}10`, border: `1px solid ${MAG}40`,
+              borderRadius: 2, color: MAG, cursor: "pointer", fontFamily: MONO, fontSize: 11,
+              opacity: pwd.length < 6 ? 0.4 : 1 }}>
+            {saving ? "..." : "OK"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfileEditModal({ member, onSave, onClose }) {
   const [nombre, setNombre] = useState(member.nombre || "");
   const [email, setEmail] = useState(member.email || "");
+  const [descripcion, setDescripcion] = useState(member.descripcion || "");
+  const [rolEmpresa, setRolEmpresa] = useState(member.rol_empresa || "");
   const [avatarUrl, setAvatarUrl] = useState(member.avatar_url || "");
   const [cropSrc, setCropSrc] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -227,6 +270,19 @@ function ProfileEditModal({ member, onSave, onClose }) {
   const INPUT = { padding: "8px 11px", background: BG, border: `1px solid ${BD}`,
     borderRadius: 2, color: T, fontSize: 13, fontFamily: SANS, outline: "none",
     boxSizing: "border-box", width: "100%" };
+
+  // Fetch full member data from Supabase so rol_empresa / descripcion are populated
+  useEffect(() => {
+    supabase.from("members").select("*").eq("id", member.id).single()
+      .then(({ data }) => {
+        if (!data) return;
+        setNombre(data.nombre || "");
+        setEmail(data.email || "");
+        setDescripcion(data.descripcion || "");
+        setRolEmpresa(data.rol_empresa || "");
+        if (data.avatar_url) setAvatarUrl(data.avatar_url);
+      });
+  }, [member.id]);
 
   const openReEdit = async () => {
     setUploading(true);
@@ -268,7 +324,7 @@ function ProfileEditModal({ member, onSave, onClose }) {
         display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
         onClick={e => e.target === e.currentTarget && onClose()}>
         <div style={{ background: S1, border: `1px solid ${BDM}`, borderRadius: 2,
-          width: "100%", maxWidth: 400, display: "flex", flexDirection: "column" }}>
+          width: "100%", maxWidth: 440, display: "flex", flexDirection: "column" }}>
 
           <div style={{ padding: "18px 24px 14px", borderBottom: `1px solid ${BD}`,
             display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -329,11 +385,33 @@ function ProfileEditModal({ member, onSave, onClose }) {
               </div>
             </div>
 
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontFamily: MONO, fontSize: 9, color: TVM, letterSpacing: "0.12em", textTransform: "uppercase" }}>Rol en la empresa</label>
+              <input value={rolEmpresa} onChange={e => setRolEmpresa(e.target.value)}
+                placeholder="Diseñador, Developer, Project Manager..." style={INPUT} />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontFamily: MONO, fontSize: 9, color: TVM, letterSpacing: "0.12em", textTransform: "uppercase" }}>Descripción</label>
+              <textarea value={descripcion} onChange={e => setDescripcion(e.target.value)}
+                placeholder="Bio, área, etc." rows={2}
+                style={{ ...INPUT, resize: "vertical", fontFamily: SANS }} />
+            </div>
+
+            <PwdRow memberId={member.id} />
+
             <button
               disabled={saving}
               onClick={async () => {
                 setSaving(true);
-                await onSave({ id: member.id, nombre: nombre.trim() || member.nombre, email: email.trim() || undefined, avatar_url: avatarUrl || undefined });
+                await onSave({
+                  id: member.id,
+                  nombre: nombre.trim() || member.nombre,
+                  email: email.trim() || undefined,
+                  descripcion: descripcion.trim() || undefined,
+                  rol_empresa: rolEmpresa.trim() || undefined,
+                  avatar_url: avatarUrl || undefined,
+                });
                 setSaving(false);
               }}
               style={{ padding: "10px", background: MAG, border: "none", borderRadius: 2,
