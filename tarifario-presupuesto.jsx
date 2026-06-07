@@ -817,16 +817,19 @@ export default function Tarifario() {
           <>
             <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
               <DELogo height={22} fill={T} />
-              <div style={{ width: 1, height: 14, background: BD }} />
-              <span style={{ fontSize: "10px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Presupuesto</span>
+              <div style={{ width: 1, height: 22, background: BD }} />
+              <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1, color: T, fontFamily: DISPLAY }}>Presupuesto</span>
             </div>
             {currentMember ? (
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: 26, height: 26, borderRadius: "50%", background: currentMember.color || MAG,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 9, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
-                  {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
-                </div>
+                {currentMember.avatar_url
+                  ? <img src={currentMember.avatar_url} alt="" style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                  : <div style={{ width: 26, height: 26, borderRadius: "50%", background: currentMember.color || MAG,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 9, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                      {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                    </div>
+                }
                 <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}
                   style={{ background: "none", border: `1px solid ${BD}`, borderRadius: 2, color: TVM, cursor: "pointer", fontSize: "9px", padding: "3px 8px", fontFamily: MONO, letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Salir
@@ -844,7 +847,8 @@ export default function Tarifario() {
           <>
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               <DELogo height={28} fill={T} />
-              <span style={{ fontSize: "11px", letterSpacing: "0.16em", color: TM, textTransform: "uppercase", fontFamily: MONO }}>Tarifario</span>
+              <div style={{ width: 1, height: 28, background: BD }} />
+              <span style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.01em", lineHeight: 1, color: T, fontFamily: DISPLAY }}>Presupuesto</span>
             </div>
             <div style={{ display: "flex", gap: "6px" }}>
               <button onClick={() => { setPresupuestoVista(null); setVista("builder"); }} style={s.btn(vista === "builder")}>Armar</button>
@@ -856,11 +860,14 @@ export default function Tarifario() {
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               {currentMember ? (
                 <>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentMember.color || MAG,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 10, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
-                    {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
-                  </div>
+                  {currentMember.avatar_url
+                    ? <img src={currentMember.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+                    : <div style={{ width: 28, height: 28, borderRadius: "50%", background: currentMember.color || MAG,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 10, fontFamily: MONO, color: "#0a0a0a", fontWeight: 700, flexShrink: 0 }}>
+                        {currentMember.nombre?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                      </div>
+                  }
                   <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
                     <span style={{ fontSize: "12px", color: T, fontFamily: MONO }}>{currentMember.nombre}</span>
                     <button onClick={async () => { await fetch("/api/member-logout", { method: "POST" }).catch(() => {}); localStorage.removeItem("pres-member"); localStorage.removeItem("pres-autenticado"); setCurrentMember(null); setAutenticado(false); }}

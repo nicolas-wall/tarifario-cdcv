@@ -6,7 +6,7 @@ export default function handler(req, res) {
   if (!token) return res.json({ member: null });
   try {
     const p = verify(token);
-    res.json({ member: { id: p.memberId, nombre: p.nombre, email: p.email, color: p.color, role: p.role } });
+    res.json({ member: { id: p.memberId, nombre: p.nombre, email: p.email, color: p.color, role: p.role, avatar_url: p.avatar_url || null } });
   } catch {
     res.json({ member: null });
   }

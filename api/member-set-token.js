@@ -14,7 +14,7 @@ export default function handler(req, res) {
     res.setHeader('Set-Cookie',
       `pres-session=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${30 * 24 * 3600}`
     );
-    res.json({ member: { id: p.memberId, nombre: p.nombre, email: p.email, color: p.color, role: p.role } });
+    res.json({ member: { id: p.memberId, nombre: p.nombre, email: p.email, color: p.color, role: p.role, avatar_url: p.avatar_url || null } });
   } catch {
     res.status(401).json({ error: 'Invalid token' });
   }
